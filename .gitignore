@@ -1,32 +1,40 @@
-# 引擎和构建产物
+# Build artifacts & runtime state
 .build/
 dist/
-.tmp/
-node_modules/
+.cli/
 logs/
+*.log
+logs/.nfs*
+.sce/logs/
+.sce/build/build_steps/__pycache__/
 
-# 引擎内部文件(只读,不属于项目)
+# Temp & swap files
+.tmp/
+*.crswap
+.DS_Store
+
+# OSS util
+.ossutil_checkpoint/
+ossutil_output/
+
+# Editor / IDE / agent configs
+.vscode/
+.cursor/
+.codex/
+.gemini/
+.claude/
+.emmylua/
+.installer/
+.maker/
+
+# Maker engine assets & agent files (provided by ai-dev-kit, not user source)
 engine-docs/
 examples/
-templates/
-urhox-libs/
+lua-tools/
 schemas/
-.emmylua/
-.agent/
-.claude/
-.codex/
-.cursor/
-.gemini/
-prompts/
-tools/
 skills/
-
-# 项目配置(自动生成)
-.project/
-
-# 上传临时文件
-_uploads/
-
-# OS
-.DS_Store
-Thumbs.db
+templates/
+tools/
+urhox-libs/
+AGENTS.md
+CLAUDE.md

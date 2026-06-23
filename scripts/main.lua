@@ -6,6 +6,10 @@
 require "LuaScripts/Utilities/Sample"
 require "urhox-libs.UI.VirtualControls"
 
+local Config = require("config")
+local Assets = require("data.AssetManifest")
+local CoordSys = require("systems.CoordinateSystem")
+
 -- ============================================================================
 -- 前置声明(供音频系统引用)
 -- ============================================================================
@@ -261,6 +265,7 @@ local vJoy_, vJump_, vAtk_, vClean_, vDash_, vInteract_
 -- ============================================================================
 local roomDefs_ = {}
 local function DefineRooms()
+    -- NOTE: This data is also in data/Level_001A.lua for future modular migration
     -- 主关卡: 22单位宽连续场景(6段), Boss房: 12单位
     local GY = -1.2  -- 主地面Y(抬高,底部留给操作区)
     local PH = 1.0   -- 平台厚度
