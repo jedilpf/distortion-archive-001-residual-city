@@ -1,0 +1,28 @@
+{
+  "$schema": "../schemas/project.schema.json",
+  "project_id": "p_hlrc",
+  "author": {
+    "id": "2049696703"
+  },
+  "entry": "main.lua",
+  "version": "1.0.0",
+  "taptap_publish": {
+    "title": "失真档案 001：残机城",
+    "description": "一款关于 AI 生成时代\"坏原型\"的像素横版动作短篇。\n\n在 AI 可以快速生成游戏之后，世界上出现了无数个\"差不多能跑\"的原型。它们有攻击、有跳跃、有技能、有 Boss。但没有手感，没有理解，也没有真正完成。\n\n后来，这些被放弃的原型沉入地下，组成了一座城市。\n\n你将进入\"残机城\"，清理代码淤泥，击败半成品怪物，提炼可用模块，并找到那个仍在运行的旧项目。\n\n它什么都有。只是不好玩。\n\n——\n\n当前版本为《失真档案》系列第一部的最小可玩原型。包含 6 个房间、2 种敌人、1 个 Boss、1 个完整结尾。后续将根据玩家反馈继续优化手感、美术和关卡内容。",
+    "category": "action",
+    "screen_orientation": "landscape",
+    "collection_type": "sce",
+    "trial_note": "短篇像素动作原型，5-8分钟可通关。\nA/D移动 | W/空格跳 | J攻击 | K长按清理 | E互动 | L冲刺\n\n反馈问题：\n1. 你是否理解了\"残机城\"的设定？\n2. 清理代码淤泥是否有意思？\n3. 冲刺能力是否好用？\n4. Boss战是否太难或太简单？\n5. 结尾反转是否有效？\n6. 你是否愿意玩《失真档案 002》？",
+    "transparent": false,
+    "app_platforms": "1,2"
+  },
+  "assets": {
+    "icon": "./game_material/ICON_2026-06-19T04-46-31_01.jpg",
+    "screenshots": [],
+    "promotional_image": "",
+    "icon_url": "https://tapcode-sce.spark.xd.com/assets/game_material/失真档案 001：残机城/ICON_2026-06-19T04-46-31_01.jpg"
+  },
+  "metadata": {
+    "updated_at": "2026-06-19T04:46:33.939Z"
+  }
+}

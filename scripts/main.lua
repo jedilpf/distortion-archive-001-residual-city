@@ -9,6 +9,9 @@ require "urhox-libs.UI.VirtualControls"
 local Config = require("config")
 local Assets = require("data.AssetManifest")
 local CoordSys = require("systems.CoordinateSystem")
+local Level001A = require("data.Level_001A")
+local EnemyFactory = require("entities.EnemyFactory")
+local CombatSystem = require("systems.CombatSystem")
 
 -- ============================================================================
 -- 前置声明(供音频系统引用)
@@ -81,42 +84,43 @@ local cleanInterrupted_ = 0
 -- ============================================================================
 local W, H = 1, 1 -- 实际值在Start()中从graphics获取
 local DPR = 1
-local PPU = 108            -- 镜头紧贴,角色大且清晰(原50→70→88→108)
-local GRAVITY = 30.0
-local MOVE_SPEED = 6.2       -- 加速移动(手感更灵敏)
-local JUMP_SPEED = 13.0      -- 跳跃略高(更爽快)
-local PLAYER_R = 0.38
-local DASH_SPEED = 16.0      -- 冲刺加速
-local DASH_DUR = 0.18
-local DASH_CD = 0.8          -- 冲刺CD缩短(更流畅连招)
-local ATK_RANGE = 1.3        -- 攻击范围略大
-local ATK_DMG = 1
-local ATK_CD = 0.22          -- 攻击后摇更短(连击手感)
-local KNOCKBACK = 7.0        -- 击退强化(反馈更明确)
-local MAX_HP = 3
-local INV_TIME = 1.0
-local CLEAR_TIME = 1.8       -- 清理时间略缩(减少等待感)
-local COYOTE_TIME = 0.15     -- 土狼时间加长(宽容度更高)
-local HITSTOP_DUR = 0.07     -- 命中停顿(略长=打击感更强)
-local ROOM_W = 12          -- 主关卡宽12单位(≈2屏),每屏一个目标
-local TOTAL_ROOMS = 1      -- R1=教程关卡(单房间)
-local CAT_GROUND = 1
-local CAT_PLAYER = 2
-local CAT_SENSOR = 4
-local CAT_ENEMY = 8
+-- 从Config读取(本地别名,便于访问)
+local PPU = Config.PPU
+local GRAVITY = Config.GRAVITY
+local MOVE_SPEED = Config.MOVE_SPEED
+local JUMP_SPEED = Config.JUMP_SPEED
+local PLAYER_R = Config.PLAYER_R
+local DASH_SPEED = Config.DASH_SPEED
+local DASH_DUR = Config.DASH_DUR
+local DASH_CD = Config.DASH_CD
+local ATK_RANGE = Config.ATK_RANGE
+local ATK_DMG = Config.ATK_DMG
+local ATK_CD = Config.ATK_CD
+local KNOCKBACK = Config.KNOCKBACK
+local MAX_HP = Config.MAX_HP
+local INV_TIME = Config.INV_TIME
+local CLEAR_TIME = Config.CLEAR_TIME
+local COYOTE_TIME = Config.COYOTE_TIME
+local HITSTOP_DUR = Config.HITSTOP_DUR
+local ROOM_W = Config.ROOM_W
+local TOTAL_ROOMS = Config.TOTAL_ROOMS
+local CAT_GROUND = Config.CAT_GROUND
+local CAT_PLAYER = Config.CAT_PLAYER
+local CAT_SENSOR = Config.CAT_SENSOR
+local CAT_ENEMY = Config.CAT_ENEMY
 
--- 状态
-local ST_TITLE = 1
-local ST_OPENING = 2
-local ST_PLAY = 3
-local ST_DEAD = 4
-local ST_BOSS = 5
-local ST_BOSS_INTRO = 6
-local ST_ENDING = 7
-local ST_MENU = 8
-local ST_ARCHIVE = 9
-local ST_PAUSE = 10    -- 暂停
-local ST_SETTINGS = 11 -- 设置
+-- 状态枚举从Config读取
+local ST_TITLE = Config.ST_TITLE
+local ST_OPENING = Config.ST_OPENING
+local ST_PLAY = Config.ST_PLAY
+local ST_DEAD = Config.ST_DEAD
+local ST_BOSS = Config.ST_BOSS
+local ST_BOSS_INTRO = Config.ST_BOSS_INTRO
+local ST_ENDING = Config.ST_ENDING
+local ST_MENU = Config.ST_MENU
+local ST_ARCHIVE = Config.ST_ARCHIVE
+local ST_PAUSE = Config.ST_PAUSE
+local ST_SETTINGS = Config.ST_SETTINGS
 local pausePrev_ = ST_PLAY  -- 暂停前状态
 
 -- ============================================================================
@@ -207,7 +211,9 @@ local floatTexts_ = {}
 local roomTexts_ = {}
 local roomDebris_ = {}
 
--- Boss
+-- ============================================================================
+-- [DISABLED in v0.1] Boss系统 - 将在v1.0启用
+-- ============================================================================
 local bossHP_, bossMaxHP_ = 0, 12
 local bossNode_, bossBody_
 local bossPhase_ = 1
@@ -265,50 +271,7 @@ local vJoy_, vJump_, vAtk_, vClean_, vDash_, vInteract_
 -- ============================================================================
 local roomDefs_ = {}
 local function DefineRooms()
-    -- NOTE: This data is also in data/Level_001A.lua for future modular migration
-    -- 主关卡: 22单位宽连续场景(6段), Boss房: 12单位
-    local GY = -1.2  -- 主地面Y(抬高,底部留给操作区)
-    local PH = 1.0   -- 平台厚度
-    roomDefs_ = {
-        { -- R1: 浅层街区(12单位,6段×2单位,紧凑推进)
-            name = "浅层街区", roomWidth=12,
-            platforms = {
-                -- 底层地面: 贯穿全关,不会掉下去
-                {x=0, y=GY, w=12, h=PH},
-                -- 段5: 上层平台(需冲刺跳上去)
-                {x=8.5, y=GY+2.2, w=1.8, h=0.4},
-            },
-            enemies = {
-                {type="knight", x=5.5, y=GY+PH+PLAYER_R, hp=2}, -- 段3: 半成品骑士(站在地面上)
-                {type="knight", x=7.5, y=GY+PH+PLAYER_R, hp=2}, -- 段4: 半成品骑士(站在地面上)
-            },
-            sludges = {
-                {x=5.2, y=GY+0.6, blocking=true},     -- 段3: 挡路淤泥
-            },
-            interactables = {
-                {x=4, y=GY+PH+1.5, type="dash_core"},  -- 段2上方空中: 冲刺种子(浮空可见)
-                {x=10.5, y=GY+PH, type="exit_door"},   -- 段6: 出口门(站在地面上)
-            },
-            hazards = {
-                {x=7, y=GY+0.5, w=1.2, h=0.3, type="damage"}, -- 段4: 冲刺危险区
-            },
-            hasExit = true,
-            killText = {"模块残留：","攻击动画已生成。","命中反馈缺失。"},
-            clearText = {"TODO：","以后再优化手感。"},
-            wallTexts = {
-                {text="警告：请勿运行废弃原型。", wx=1, wy=1.5, color={150,150,150,110}, size=8},
-                {text="攻击系统：可运行。", wx=3.5, wy=2, color={80,120,80,100}, size=8},
-                {text="TODO：以后再优化。", wx=5.5, wy=1.8, color={100,80,120,100}, size=8},
-                {text="冲刺功能已接入。", wx=7.5, wy=1.8, color={80,150,150,100}, size=8},
-                {text="NEXT BUILD →", wx=11, wy=2.5, color={80,200,180,140}, size=10},
-            },
-            debris = {
-                {type="hpbar",x=0.8,y=2.5}, {type="popup",x=4,y=2.5},
-                {type="missing",x=6.5,y=2.5}, {type="halfui",x=9.5,y=2.8},
-                {type="todo",x=2.5,y=3}, {type="hpbar",x=8,y=3.2},
-            },
-        },
-    }
+    roomDefs_ = { Level001A }
     totalSludge_ = 0
     for _, r in ipairs(roomDefs_) do totalSludge_ = totalSludge_ + #r.sludges end
 end
@@ -344,45 +307,47 @@ function Start()
     DPR = dpr
     W = math.floor(physW / dpr)
     H = math.floor(physH / dpr)
+    Config.W = W; Config.H = H; Config.DPR = DPR
     print("[Init] Screen: "..W.."x"..H.." (phys "..physW.."x"..physH..", dpr="..dpr..")")
     nvg_ = nvgCreate(1)
     nvgCreateFont(nvg_, "px", "Fonts/MiSans-Regular.ttf")
     -- 加载角色帧动画(基于设定图生成的正式像素精灵)
-    charImgs_.idle = nvgCreateImage(nvg_, "image/char_idle1_20260621184424.png", 0)
-    charImgs_.run1 = nvgCreateImage(nvg_, "image/char_run1_20260621184411.png", 0)
-    charImgs_.run2 = nvgCreateImage(nvg_, "image/char_run2_20260621184434.png", 0)
-    charImgs_.jump = nvgCreateImage(nvg_, "image/char_jump_20260621184416.png", 0)
-    charImgs_.attack = nvgCreateImage(nvg_, "image/char_attack_20260621184410.png", 0)
-    charImgs_.clean = nvgCreateImage(nvg_, "image/char_clean_20260621184409.png", 0)
-    charImgs_.dash = nvgCreateImage(nvg_, "image/char_dash_20260621184409.png", 0)
-    -- 加载对局物件素材(v0.1.3简洁像素风)
+    -- 加载角色帧动画
+    charImgs_.idle = nvgCreateImage(nvg_, Assets.char.idle, 0)
+    charImgs_.run1 = nvgCreateImage(nvg_, Assets.char.run1, 0)
+    charImgs_.run2 = nvgCreateImage(nvg_, Assets.char.run2, 0)
+    charImgs_.jump = nvgCreateImage(nvg_, Assets.char.jump, 0)
+    charImgs_.attack = nvgCreateImage(nvg_, Assets.char.attack, 0)
+    charImgs_.clean = nvgCreateImage(nvg_, Assets.char.clean, 0)
+    charImgs_.dash = nvgCreateImage(nvg_, Assets.char.dash, 0)
+    -- 加载对局物件素材
     objImgs_ = {}
-    objImgs_.sludge = nvgCreateImage(nvg_, "image/obj_sludge_20260622060959.png", 0)
-    objImgs_.sludgeClean = objImgs_.sludge  -- 清理中复用(靠alpha渐变表现)
-    objImgs_.sludgeBreak = objImgs_.sludge  -- 碎裂复用(靠alpha+粒子表现)
-    objImgs_.sludgeBlock = objImgs_.sludge  -- 阻挡型复用(靠尺寸区分)
-    objImgs_.enemyIdle = nvgCreateImage(nvg_, "image/e01_idle_20260623015723.png", 0)
-    objImgs_.enemyWalk1 = nvgCreateImage(nvg_, "image/e01_walk1_20260623015810.png", 0)
-    objImgs_.enemyWalk2 = nvgCreateImage(nvg_, "image/e01_walk2_20260623015919.png", 0)
-    objImgs_.enemyHit = nvgCreateImage(nvg_, "image/e01_hurt_20260623015801.png", 0)
-    objImgs_.door = nvgCreateImage(nvg_, "image/obj_nextdoor_20260623020120.png", 0)
-    objImgs_.fragment = nvgCreateImage(nvg_, "image/obj_frag_20260622061034.png", 0)
-    objImgs_.dashCore = nvgCreateImage(nvg_, "image/obj_dashcore_20260622061006.png", 0)
-    objImgs_.platUpper = nvgCreateImage(nvg_, "image/platform_upper_20260623020533.png", 0)
-    -- 加载按钮图标(像素风)
+    objImgs_.sludge = nvgCreateImage(nvg_, Assets.objects.sludge, 0)
+    objImgs_.sludgeClean = objImgs_.sludge
+    objImgs_.sludgeBreak = objImgs_.sludge
+    objImgs_.sludgeBlock = objImgs_.sludge
+    objImgs_.enemyIdle = nvgCreateImage(nvg_, Assets.enemy.idle, 0)
+    objImgs_.enemyWalk1 = nvgCreateImage(nvg_, Assets.enemy.walk1, 0)
+    objImgs_.enemyWalk2 = nvgCreateImage(nvg_, Assets.enemy.walk2, 0)
+    objImgs_.enemyHit = nvgCreateImage(nvg_, Assets.enemy.hurt, 0)
+    objImgs_.door = nvgCreateImage(nvg_, Assets.objects.door, 0)
+    objImgs_.fragment = nvgCreateImage(nvg_, Assets.objects.fragment, 0)
+    objImgs_.dashCore = nvgCreateImage(nvg_, Assets.objects.dashCore, 0)
+    objImgs_.platUpper = nvgCreateImage(nvg_, Assets.objects.platUpper, 0)
+    -- 加载按钮图标
     btnImgs_ = {}
-    btnImgs_.attack = nvgCreateImage(nvg_, "image/btn_atk_20260621193438.png", 0)
-    btnImgs_.jump = nvgCreateImage(nvg_, "image/btn_jmp_20260621193517.png", 0)
-    btnImgs_.clean = nvgCreateImage(nvg_, "image/btn_cln_20260621193437.png", 0)
-    btnImgs_.dash = nvgCreateImage(nvg_, "image/btn_dsh_20260621193531.png", 0)
-    btnImgs_.pause = nvgCreateImage(nvg_, "image/btn_pse_20260621193524.png", 0)
-    btnImgs_.settings = nvgCreateImage(nvg_, "image/btn_set_20260621193516.png", 0)
+    btnImgs_.attack = nvgCreateImage(nvg_, Assets.buttons.attack, 0)
+    btnImgs_.jump = nvgCreateImage(nvg_, Assets.buttons.jump, 0)
+    btnImgs_.clean = nvgCreateImage(nvg_, Assets.buttons.clean, 0)
+    btnImgs_.dash = nvgCreateImage(nvg_, Assets.buttons.dash, 0)
+    btnImgs_.pause = nvgCreateImage(nvg_, Assets.buttons.pause, 0)
+    btnImgs_.settings = nvgCreateImage(nvg_, Assets.buttons.settings, 0)
     -- 加载环境素材
-    envImgs_.bgFar = nvgCreateImage(nvg_, "image/bg_far.png", NVG_IMAGE_REPEATX)
-    envImgs_.bgWall = nvgCreateImage(nvg_, "image/bg_wall.png", NVG_IMAGE_REPEATX)
-    envImgs_.ground = nvgCreateImage(nvg_, "image/tile_ground.png", NVG_IMAGE_REPEATX)
-    envImgs_.platform = nvgCreateImage(nvg_, "image/tile_platform.png", NVG_IMAGE_REPEATX)
-    envImgs_.monitor = nvgCreateImage(nvg_, "image/deco_monitor.png", 0)
+    envImgs_.bgFar = nvgCreateImage(nvg_, Assets.env.bgFar, NVG_IMAGE_REPEATX)
+    envImgs_.bgWall = nvgCreateImage(nvg_, Assets.env.bgWall, NVG_IMAGE_REPEATX)
+    envImgs_.ground = nvgCreateImage(nvg_, Assets.env.ground, NVG_IMAGE_REPEATX)
+    envImgs_.platform = nvgCreateImage(nvg_, Assets.env.platform, NVG_IMAGE_REPEATX)
+    envImgs_.monitor = nvgCreateImage(nvg_, Assets.env.monitor, 0)
     envImgs_.debris = nvgCreateImage(nvg_, "image/deco_debris.png", 0)
     envImgs_.titleBg = nvgCreateImage(nvg_, "image/title_bg.png", 0)
     envImgs_.endingBg = nvgCreateImage(nvg_, "image/scene_ending.png", 0)
@@ -539,13 +504,8 @@ local function BuildRoom(idx)
     end
     -- 敌人
     for _,ed in ipairs(rd.enemies) do
-        local n=scene_:CreateChild("Enemy"); n:SetPosition2D(ed.x,ed.y)
-        local b=n:CreateComponent("RigidBody2D"); b.bodyType=BT_DYNAMIC; b.fixedRotation=true
-        b.gravityScale=(ed.type=="moth") and 0 or 1
-        local sh=n:CreateComponent("CollisionCircle2D"); sh.radius=0.38; sh.density=1; sh.friction=0.2
-        sh.categoryBits=CAT_ENEMY; sh.maskBits=CAT_GROUND|CAT_PLAYER
-        table.insert(enemies_,{type=ed.type,node=n,body=b,hp=ed.hp or 3,alive=true,invT=0,
-            moveDir=1,moveT=0,shootT=0,baseX=ed.x,baseY=ed.y,floatT=0})
+        local enemy = EnemyFactory.create(scene_, ed)
+        table.insert(enemies_, enemy)
     end
     for _,it in ipairs(rd.interactables) do
         local n=scene_:CreateChild("Interact"); n:SetPosition2D(it.x,it.y)
@@ -963,31 +923,35 @@ end
 
 function PerformAttack()
     if not playerNode_ then return end
-    local pp=playerNode_.position2D; local ax=pp.x+atkDir_*ATK_RANGE*0.5
-    for _,e in ipairs(enemies_) do
-        if e.alive and e.node then
-            local ep=e.node.position2D
-            if math.sqrt((ax-ep.x)^2+(pp.y-ep.y)^2)<ATK_RANGE then
-                e.hp=e.hp-ATK_DMG; e.invT=0.25; PlaySFX("sfx_enemy_hit")
-                hitstopT_=HITSTOP_DUR; SpawnVFX(ep.x,ep.y,6,"hit_spark")
-                local kb=(ep.x>pp.x) and 1 or -1
-                e.body.linearVelocity=Vector2(kb*KNOCKBACK,3)
-                if e.hp<=0 then
-                    e.alive=false; SpawnFrag(ep.x,ep.y+0.3); e.node:Remove()
-                    if roomDefs_[curRoom_] and roomDefs_[curRoom_].killText then
-                        ShowFloat(roomDefs_[curRoom_].killText, ep.x, ep.y+1, {200,200,100,220}, 3.5)
-                    end
-                end
+    local pp = playerNode_.position2D
+    CombatSystem.performAttack(pp, atkDir_, enemies_, {
+        onHit = function(e)
+            hitstopT_ = HITSTOP_DUR
+            shake_ = 0.08
+            PlaySFX("sfx_enemy_hit")
+            SpawnVFX(e.node.position2D.x, e.node.position2D.y, 5, "hit_spark")
+        end,
+        onKill = function(e)
+            local ep = e.node and e.node.position2D or {x=pp.x, y=pp.y}
+            SpawnFrag(ep.x, ep.y + 0.5)
+            SpawnVFX(ep.x, ep.y, 8, "hit_spark")
+            if roomDefs_[curRoom_] and roomDefs_[curRoom_].killText then
+                ShowFloat(roomDefs_[curRoom_].killText, ep.x, ep.y + 1, {200,200,100,220}, 3.5)
             end
+        end,
+    })
+    -- [DISABLED v0.1] Boss attack logic
+    --[[
+    local ax = pp.x + atkDir_ * ATK_RANGE * 0.5
+    if gameState_ == ST_BOSS and bossNode_ then
+        local bp = bossNode_.position2D
+        if math.sqrt((ax-bp.x)^2+(pp.y-bp.y)^2) < ATK_RANGE+0.3 then
+            DamageBoss(ATK_DMG); hitstopT_ = HITSTOP_DUR
+            local kb = (bp.x > pp.x) and 1 or -1
+            bossBody_.linearVelocity = Vector2(kb*3, 2)
         end
     end
-    if gameState_==ST_BOSS and bossNode_ then
-        local bp=bossNode_.position2D
-        if math.sqrt((ax-bp.x)^2+(pp.y-bp.y)^2)<ATK_RANGE+0.3 then
-            DamageBoss(ATK_DMG); hitstopT_=HITSTOP_DUR; local kb=(bp.x>pp.x) and 1 or -1
-            bossBody_.linearVelocity=Vector2(kb*3,2)
-        end
-    end
+    --]]
 end
 
 function UpdateEnemies(dt)
