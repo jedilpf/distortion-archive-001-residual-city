@@ -348,14 +348,14 @@ function Start()
     envImgs_.ground = nvgCreateImage(nvg_, Assets.env.ground, NVG_IMAGE_REPEATX)
     envImgs_.platform = nvgCreateImage(nvg_, Assets.env.platform, NVG_IMAGE_REPEATX)
     envImgs_.monitor = nvgCreateImage(nvg_, Assets.env.monitor, 0)
-    envImgs_.debris = nvgCreateImage(nvg_, "image/deco_debris.png", 0)
-    envImgs_.titleBg = nvgCreateImage(nvg_, "image/title_bg.png", 0)
-    envImgs_.endingBg = nvgCreateImage(nvg_, "image/scene_ending.png", 0)
+    envImgs_.debris = nvgCreateImage(nvg_, Assets.env.debris, 0)
+    envImgs_.titleBg = nvgCreateImage(nvg_, Assets.env.titleBg, 0)
+    envImgs_.endingBg = nvgCreateImage(nvg_, Assets.env.sceneEnding, 0)
     DefineRooms()
     CreateScene()
     InitAudio()
     CreateControls()
-    PlayMusic("audio/bgm_explore.ogg")
+    PlayMusic(Assets.audio.bgm_explore)
     SubscribeToEvent("Update", "HandleUpdate")
     SubscribeToEvent(nvg_, "NanoVGRender", "HandleRender")
     SubscribeToEvent("KeyDown", "HandleKeyDown")
@@ -519,7 +519,7 @@ local function BuildRoom(idx)
     if rd.debris then for _,d in ipairs(rd.debris) do table.insert(roomDebris_,d) end end
     -- 教程弹窗
     if idx==1 then ShowTutorial("左侧摇杆移动 → 向右推进") end
-    if rd.isBoss then
+    if rd.isBoss and Config.ENABLE_BOSS then
         bossIntroLine_=0; bossIntroT_=0
         gameState_=ST_BOSS_INTRO; bossLocked_=true
     end
@@ -605,7 +605,7 @@ local function DamageBoss(dmg)
     end
     if bossHP_<=0 then
         if bossNode_ then bossNode_:Remove(); bossNode_=nil end
-        bossLocked_=false; PlaySFX("sfx_boss_die"); PlayMusic("audio/bgm_ending.ogg")
+        bossLocked_=false; PlaySFX("sfx_boss_die"); PlayMusic(Assets.audio.bgm_ending)
         gameState_=ST_ENDING; endPhase_=0; endT_=0; endLine_=0; endLineT_=0
     end
 end
@@ -656,7 +656,7 @@ end
 
 local function NextRoom()
     -- 单房间设计: 进入出口门直接触发结局
-    PlayMusic("audio/bgm_ending.ogg")
+    PlayMusic(Assets.audio.bgm_ending)
     gameState_=ST_ENDING; endPhase_=0; endT_=0; endLine_=0; endLineT_=0
 end
 
@@ -713,7 +713,7 @@ function HandleUpdate(eventType, eventData)
         if input:GetMouseButtonPress(MOUSEB_LEFT) then
             if gameState_==ST_TITLE then StartGame()
             elseif gameState_==ST_OPENING then ActualStart()
-            elseif gameState_==ST_BOSS_INTRO then PlaySFX("sfx_boss_enter"); PlayMusic("audio/bgm_boss.ogg"); SpawnBoss()
+            elseif gameState_==ST_BOSS_INTRO and Config.ENABLE_BOSS then PlaySFX("sfx_boss_enter"); PlayMusic(Assets.audio.bgm_boss); SpawnBoss()
             end
         end
     end
@@ -723,10 +723,10 @@ function HandleUpdate(eventType, eventData)
         if openLineT_>1.0 then openLineT_=0; openLine_=openLine_+1
             if openLine_>#openingLines_ then ActualStart() end
         end
-    elseif gameState_==ST_BOSS_INTRO then
+    elseif gameState_==ST_BOSS_INTRO and Config.ENABLE_BOSS then
         bossIntroT_=bossIntroT_+dt
         if bossIntroT_>0.8 then bossIntroT_=0; bossIntroLine_=bossIntroLine_+1
-            if bossIntroLine_>#bossIntroLines_ then PlaySFX("sfx_boss_enter"); PlayMusic("audio/bgm_boss.ogg"); SpawnBoss() end
+            if bossIntroLine_>#bossIntroLines_ then PlaySFX("sfx_boss_enter"); PlayMusic(Assets.audio.bgm_boss); SpawnBoss() end
         end
     elseif gameState_==ST_PAUSE then
         -- 暂停状态: 检查按钮恢复或进入设置
@@ -931,12 +931,11 @@ function PerformAttack()
             PlaySFX("sfx_enemy_hit")
             SpawnVFX(e.node.position2D.x, e.node.position2D.y, 5, "hit_spark")
         end,
-        onKill = function(e)
-            local ep = e.node and e.node.position2D or {x=pp.x, y=pp.y}
-            SpawnFrag(ep.x, ep.y + 0.5)
-            SpawnVFX(ep.x, ep.y, 8, "hit_spark")
+        onKill = function(e, deathPos)
+            SpawnFrag(deathPos.x, deathPos.y + 0.5)
+            SpawnVFX(deathPos.x, deathPos.y, 8, "hit_spark")
             if roomDefs_[curRoom_] and roomDefs_[curRoom_].killText then
-                ShowFloat(roomDefs_[curRoom_].killText, ep.x, ep.y + 1, {200,200,100,220}, 3.5)
+                ShowFloat(roomDefs_[curRoom_].killText, deathPos.x, deathPos.y + 1, {200,200,100,220}, 3.5)
             end
         end,
     })
@@ -1176,7 +1175,7 @@ function HandleKeyDown(eventType, eventData)
         if key==KEY_RETURN or key==KEY_SPACE then StartGame() end
     elseif gameState_==ST_OPENING then
         if key==KEY_RETURN or key==KEY_SPACE then ActualStart() end
-    elseif gameState_==ST_BOSS_INTRO then
+    elseif gameState_==ST_BOSS_INTRO and Config.ENABLE_BOSS then
         if key==KEY_RETURN or key==KEY_SPACE then SpawnBoss() end
     elseif gameState_==ST_DEAD then
         if deathT_>1.5 and (key==KEY_RETURN or key==KEY_SPACE) then Respawn() end

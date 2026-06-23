@@ -49,6 +49,9 @@ Config.ST_ARCHIVE = 9
 Config.ST_PAUSE = 10
 Config.ST_SETTINGS = 11
 
+-- Boss开关(v0.1禁用,v1.0启用)
+Config.ENABLE_BOSS = false
+
 -- 关卡设计参数
 Config.GY = -1.2          -- 主地面Y
 Config.PH = 1.0           -- 平台厚度

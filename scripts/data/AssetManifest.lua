@@ -32,6 +32,9 @@ Assets.env = {
     ground = "image/tile_ground.png",
     platform = "image/tile_platform.png",
     monitor = "image/deco_monitor.png",
+    debris = "image/deco_debris.png",
+    titleBg = "image/title_bg.png",
+    sceneEnding = "image/scene_ending.png",
 }
 
 Assets.buttons = {

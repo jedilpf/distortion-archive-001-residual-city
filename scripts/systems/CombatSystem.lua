@@ -26,8 +26,10 @@ function CombatSystem.performAttack(playerPos, atkDir, enemies, callbacks)
                 if callbacks.onHit then callbacks.onHit(e) end
                 if e.hp <= 0 then
                     e.alive = false
-                    if e.node then e.node:Remove() end
-                    if callbacks.onKill then callbacks.onKill(e) end
+                    -- 先记录死亡位置,再Remove节点,最后回调
+                    local deathPos = e.node and Vector2(e.node.position2D.x, e.node.position2D.y) or Vector2(playerPos.x, playerPos.y)
+                    if e.node then e.node:Remove(); e.node = nil end
+                    if callbacks.onKill then callbacks.onKill(e, deathPos) end
                 end
             end
         end
