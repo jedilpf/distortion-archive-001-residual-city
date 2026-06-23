@@ -534,11 +534,16 @@ local function CreatePlayer()
     playerBody_=playerNode_:CreateComponent("RigidBody2D")
     playerBody_.bodyType=BT_DYNAMIC; playerBody_.fixedRotation=true
     playerBody_.linearDamping=0; playerBody_.gravityScale=1.3  -- 零阻尼(手动减速);重力偏重=落地清脆
-    local bs=playerNode_:CreateComponent("CollisionCircle2D")
-    bs.radius=PLAYER_R; bs.density=1; bs.friction=0; bs.restitution=0
+    -- 主体碰撞盒(矩形,底部对齐节点位置)
+    local bs=playerNode_:CreateComponent("CollisionBox2D")
+    bs:SetSize(Config.PLAYER_BOX_W, Config.PLAYER_BOX_H)
+    bs:SetCenter(0, Config.PLAYER_BOX_H/2)  -- 底部对齐脚底
+    bs.density=1; bs.friction=0; bs.restitution=0
     bs.categoryBits=CAT_PLAYER; bs.maskBits=CAT_GROUND|CAT_ENEMY
-    local ft=playerNode_:CreateComponent("CollisionCircle2D")
-    ft.radius=PLAYER_R*0.6; ft.center=Vector2(0,-PLAYER_R*0.85)
+    -- 脚底传感器(短扁矩形,只检测地面)
+    local ft=playerNode_:CreateComponent("CollisionBox2D")
+    ft:SetSize(Config.PLAYER_FOOT_W, Config.PLAYER_FOOT_H)
+    ft:SetCenter(0, -Config.PLAYER_FOOT_H/2)  -- 在节点位置下方
     ft.trigger=true; ft.categoryBits=CAT_SENSOR; ft.maskBits=CAT_GROUND
     onGround_=false; gndCount_=0
 end
@@ -958,37 +963,52 @@ function PerformAttack()
 end
 
 function UpdateEnemies(dt)
-    for _,e in ipairs(enemies_) do
-        if e.alive and e.node then
-            e.invT=math.max(0,e.invT-dt)
-            local pp=playerNode_ and playerNode_.position2D or Vector2(0,0)
-            local ep=e.node.position2D
-            if e.type=="knight" then
-                e.moveT=e.moveT+dt; if e.moveT>2 then e.moveDir=-e.moveDir; e.moveT=0 end
-                e.body.linearVelocity=Vector2(e.moveDir*1.8,e.body.linearVelocity.y)
-                if playerNode_ and math.sqrt((ep.x-pp.x)^2+(ep.y-pp.y)^2)<0.7 then DamagePlayer(1) end
-            elseif e.type=="moth" then
-                e.floatT=e.floatT+dt; local fy=e.baseY+math.sin(e.floatT*1.5)*0.4
-                e.node:SetPosition2D(ep.x,fy); e.body.gravityScale=0; e.body.linearVelocity=Vector2(0,0)
-                e.shootT=e.shootT+dt
-                if e.shootT>2.0 and playerNode_ then
-                    e.shootT=0; local dir=Vector2(pp.x-ep.x,pp.y-fy):Normalized()
-                    local pn=scene_:CreateChild("Proj"); pn:SetPosition2D(ep.x,fy)
-                    table.insert(projs_,{node=pn,vx=dir.x*3.5,vy=dir.y*3.5,life=4}); PlaySFX("sfx_proj")
+    for _,e in ipairs(enemies_) do if e.alive and e.node then
+        e.invT = math.max(0, e.invT - dt)
+        local ep = e.node.position2D
+        local pp = playerNode_ and playerNode_.position2D
+        local distToPlayer = pp and math.abs(ep.x - pp.x) or 999
+
+        -- 攻击AI状态机
+        e.atkTimer = math.max(0, e.atkTimer - dt)
+        if e.atkState == "idle" then
+            -- 巡逻移动
+            e.moveT = e.moveT + dt
+            if e.moveT > 2.0 then e.moveT = 0; e.moveDir = -e.moveDir end
+            if e.body then e.body.linearVelocity = Vector2(e.moveDir * 1.8, e.body.linearVelocity.y) end
+            -- 发现玩家 → 进入前摇
+            if distToPlayer < Config.ENEMY_ATK_RANGE then
+                e.atkState = "windup"
+                e.atkTimer = Config.ENEMY_ATK_WINDUP
+                e.atkDir = (pp.x > ep.x) and 1 or -1
+                if e.body then e.body.linearVelocity = Vector2(0, e.body.linearVelocity.y) end
+            end
+        elseif e.atkState == "windup" then
+            -- 前摇中: 停止移动
+            if e.body then e.body.linearVelocity = Vector2(0, e.body.linearVelocity.y) end
+            if e.atkTimer <= 0 then
+                e.atkState = "attack"
+                e.atkTimer = 0.15  -- 攻击持续时间
+            end
+        elseif e.atkState == "attack" then
+            -- 攻击中: 检测命中
+            if pp and CombatSystem.checkEnemyAttack(e, pp) then
+                if invT_ <= 0 then
+                    DamagePlayer(1)
                 end
-                if playerNode_ and math.sqrt((ep.x-pp.x)^2+(fy-pp.y)^2)<0.55 then DamagePlayer(1) end
-            elseif e.type=="ghost" then
-                e.floatT=e.floatT+dt; local fy=e.baseY+math.sin(e.floatT*2)*0.5
-                e.node:SetPosition2D(ep.x,fy); e.body.gravityScale=0; e.body.linearVelocity=Vector2(0,0)
-                e.shootT=e.shootT+dt
-                if playerNode_ and math.sqrt((ep.x-pp.x)^2+(fy-pp.y)^2)<4 and e.shootT>2.5 then
-                    local dir=Vector2(pp.x-ep.x,pp.y-fy):Normalized()
-                    e.body.linearVelocity=Vector2(dir.x*6,dir.y*6); e.shootT=0
-                end
-                if playerNode_ and math.sqrt((ep.x-pp.x)^2+(fy-pp.y)^2)<0.6 then DamagePlayer(1) end
+            end
+            if e.atkTimer <= 0 then
+                e.atkState = "cooldown"
+                e.atkTimer = Config.ENEMY_ATK_CD
+            end
+        elseif e.atkState == "cooldown" then
+            -- 冷却: 缓慢移动
+            if e.body then e.body.linearVelocity = Vector2(e.moveDir * 0.8, e.body.linearVelocity.y) end
+            if e.atkTimer <= 0 then
+                e.atkState = "idle"
             end
         end
-    end
+    end end
 end
 
 function UpdatePickups(dt)
@@ -2086,50 +2106,53 @@ function DrawHUD()
         nvgFillColor(nvg_,nvgRGBA(150,240,255,math.floor(screenFlash_*100))); nvgFill(nvg_)
     end
 
-    -- ===== 调试碰撞框(F1切换) =====
-    if debugDraw_ and playerNode_ then
-        local orthoH = H / PPU
-        -- 设计坐标: 平台顶 GY+PH = -1.2+1.0 = -0.2, 操作区底 GY = -1.2
-        -- 转换为屏幕Y: W2S使用cameraNode_
-        local GY_val = -1.2
-        local PH_val = 1.0
-        -- 平台顶部水平线(青色)
-        local _, platTopY = W2S(0, GY_val + PH_val)
-        nvgBeginPath(nvg_); nvgMoveTo(nvg_, 0, platTopY); nvgLineTo(nvg_, W, platTopY)
-        nvgStrokeColor(nvg_, nvgRGBA(0, 220, 200, 160)); nvgStrokeWidth(nvg_, 1.5); nvgStroke(nvg_)
-        -- 地面底部水平线(黄色)
-        local _, groundY = W2S(0, GY_val)
-        nvgBeginPath(nvg_); nvgMoveTo(nvg_, 0, groundY); nvgLineTo(nvg_, W, groundY)
-        nvgStrokeColor(nvg_, nvgRGBA(220, 200, 0, 120)); nvgStrokeWidth(nvg_, 1); nvgStroke(nvg_)
-        -- 玩家碰撞圆(绿色)
-        local pp = playerNode_.position2D
-        local psx, psy = W2S(pp.x, pp.y)
-        local pr = PLAYER_R * PPU
-        nvgBeginPath(nvg_); nvgCircle(nvg_, psx, psy, pr)
-        nvgStrokeColor(nvg_, nvgRGBA(60, 255, 60, 220)); nvgStrokeWidth(nvg_, 1.5); nvgStroke(nvg_)
-        -- 攻击范围(黄色矩形,攻击时显示)
-        if attacking_ then
-            local adir = atkDir_
-            local ax1 = psx + (adir > 0 and 0 or -ATK_RANGE * PPU)
-            local aw = ATK_RANGE * PPU
-            nvgBeginPath(nvg_); nvgRect(nvg_, ax1, psy - pr, aw, pr * 2)
-            nvgStrokeColor(nvg_, nvgRGBA(255, 240, 0, 200)); nvgStrokeWidth(nvg_, 1.5); nvgStroke(nvg_)
-        end
-        -- 敌人碰撞圆(红色)
-        for _, e in ipairs(enemies_) do
-            if e.alive and e.node then
-                local ep = e.node.position2D
-                local esx, esy = W2S(ep.x, ep.y)
-                local er = 0.38 * PPU
-                nvgBeginPath(nvg_); nvgCircle(nvg_, esx, esy, er)
-                nvgStrokeColor(nvg_, nvgRGBA(255, 60, 60, 220)); nvgStrokeWidth(nvg_, 1.5); nvgStroke(nvg_)
+    -- ===== Debug碰撞显示 [F1] =====
+    if debugDraw_ then
+        nvgFontFace(nvg_,"px"); nvgFontSize(nvg_,9)
+        nvgTextAlign(nvg_,NVG_ALIGN_LEFT|NVG_ALIGN_TOP)
+        nvgFillColor(nvg_,nvgRGBA(0,255,0,200))
+        nvgText(nvg_,5,H-20,"DEBUG [F1]")
+        -- 平台顶部参考线 y=740
+        local platLineY = H * Config.PLATFORM_TOP_DESIGN_Y / 1080
+        nvgBeginPath(nvg_); nvgMoveTo(nvg_,0,platLineY); nvgLineTo(nvg_,W,platLineY)
+        nvgStrokeColor(nvg_,nvgRGBA(0,200,200,80)); nvgStrokeWidth(nvg_,1); nvgStroke(nvg_)
+        -- 操作区参考线 y=820
+        local opLineY = H * Config.OPERATION_ZONE_Y / 1080
+        nvgBeginPath(nvg_); nvgMoveTo(nvg_,0,opLineY); nvgLineTo(nvg_,W,opLineY)
+        nvgStrokeColor(nvg_,nvgRGBA(200,200,0,80)); nvgStrokeWidth(nvg_,1); nvgStroke(nvg_)
+        -- 玩家碰撞盒(绿色矩形)
+        if playerNode_ then
+            local pp=playerNode_.position2D; local px,py=W2S(pp.x,pp.y)
+            local bw=Config.PLAYER_BOX_W*PPU; local bh=Config.PLAYER_BOX_H*PPU
+            nvgBeginPath(nvg_); nvgRect(nvg_,px-bw/2,py-bh,bw,bh)
+            nvgStrokeColor(nvg_,nvgRGBA(0,255,0,180)); nvgStrokeWidth(nvg_,1.5); nvgStroke(nvg_)
+            -- foot sensor(青色)
+            local fw=Config.PLAYER_FOOT_W*PPU; local fh=Config.PLAYER_FOOT_H*PPU
+            nvgBeginPath(nvg_); nvgRect(nvg_,px-fw/2,py,fw,fh)
+            nvgStrokeColor(nvg_,nvgRGBA(0,200,200,180)); nvgStrokeWidth(nvg_,1); nvgStroke(nvg_)
+            -- 攻击盒(黄色,仅攻击时显示)
+            if attacking_ then
+                local atkW=ATK_RANGE*PPU; local atkH=1.0*PPU
+                local atkX=px+atkDir_*atkW/2
+                nvgBeginPath(nvg_); nvgRect(nvg_,atkX-atkW/2,py-atkH*0.6,atkW,atkH)
+                nvgStrokeColor(nvg_,nvgRGBA(255,255,0,200)); nvgStrokeWidth(nvg_,2); nvgStroke(nvg_)
             end
         end
-        -- 标签
-        nvgFontFace(nvg_, "px"); nvgFontSize(nvg_, 10)
-        nvgTextAlign(nvg_, NVG_ALIGN_LEFT | NVG_ALIGN_TOP)
-        nvgFillColor(nvg_, nvgRGBA(0, 220, 200, 200))
-        nvgText(nvg_, 8, H - 60, "DEBUG [F1]  platTop y=" .. string.format("%.0f", platTopY))
+        -- 敌人碰撞盒(红色矩形) + 攻击盒(橙色)
+        for _,e in ipairs(enemies_) do if e.alive and e.node then
+            local ep=e.node.position2D; local ex,ey=W2S(ep.x,ep.y)
+            local ew=Config.ENEMY_WIDTH*PPU; local eh=Config.ENEMY_HEIGHT*PPU
+            nvgBeginPath(nvg_); nvgRect(nvg_,ex-ew/2,ey-eh,ew,eh)
+            nvgStrokeColor(nvg_,nvgRGBA(255,60,60,180)); nvgStrokeWidth(nvg_,1.5); nvgStroke(nvg_)
+            -- 敌人攻击盒(前摇/攻击时显示)
+            if e.atkState=="windup" or e.atkState=="attack" then
+                local aDir=e.atkDir; local aRange=Config.ENEMY_ATK_HITBOX*PPU
+                local ax=ex+aDir*aRange/2
+                nvgBeginPath(nvg_); nvgRect(nvg_,ax-aRange/2,ey-eh*0.7,aRange,eh*0.6)
+                local aCol=(e.atkState=="attack") and nvgRGBA(255,100,0,200) or nvgRGBA(255,50,50,120)
+                nvgStrokeColor(nvg_,aCol); nvgStrokeWidth(nvg_,1.5); nvgStroke(nvg_)
+            end
+        end end
     end
 
     -- ===== 按钮矢量图标(NanoVG手绘,对齐VirtualControls坐标) =====

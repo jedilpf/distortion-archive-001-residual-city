@@ -52,6 +52,20 @@ Config.ST_SETTINGS = 11
 -- Boss开关(v0.1禁用,v1.0启用)
 Config.ENABLE_BOSS = false
 
+-- 敌人战斗参数
+Config.ENEMY_WIDTH = 0.5       -- 敌人碰撞盒宽
+Config.ENEMY_HEIGHT = 0.7      -- 敌人碰撞盒高
+Config.ENEMY_ATK_RANGE = 1.5   -- 敌人发现/攻击触发距离
+Config.ENEMY_ATK_WINDUP = 0.3  -- 攻击前摇时间
+Config.ENEMY_ATK_CD = 1.2      -- 攻击冷却
+Config.ENEMY_ATK_HITBOX = 0.8  -- 敌人攻击判定距离
+
+-- 玩家碰撞盒参数
+Config.PLAYER_BOX_W = 0.45     -- 玩家碰撞盒宽(视觉宽度60%)
+Config.PLAYER_BOX_H = 0.65     -- 玩家碰撞盒高(视觉高度88%)
+Config.PLAYER_FOOT_W = 0.35    -- 脚底检测宽
+Config.PLAYER_FOOT_H = 0.1     -- 脚底检测高
+
 -- 关卡设计参数
 Config.GY = -1.2          -- 主地面Y
 Config.PH = 1.0           -- 平台厚度

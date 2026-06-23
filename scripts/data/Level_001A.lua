@@ -16,8 +16,8 @@ Level.platforms = {
 }
 
 Level.enemies = {
-    {type="knight", x=5.5, y=GY+PH+PLAYER_R, hp=2},
-    {type="knight", x=7.5, y=GY+PH+PLAYER_R, hp=2},
+    {type="semi_executor", x=5.5, y=GY+PH, hp=2},  -- 战斗区中间(屏幕~46%)
+    {type="semi_executor", x=7.8, y=GY+PH, hp=2},  -- 战斗区右侧(屏幕~65%)
 }
 
 Level.sludges = {
@@ -25,8 +25,8 @@ Level.sludges = {
 }
 
 Level.interactables = {
-    {x=4, y=GY+PH+1.5, type="dash_core"},
-    {x=10.5, y=GY+PH, type="exit_door"},
+    {x=4, y=GY+PH+1.5, type="dash_core"},   -- 跳跃教学区上方
+    {x=10.5, y=GY+PH, type="exit_door"},     -- 右侧终点区(屏幕~87%)
 }
 
 Level.hazards = {

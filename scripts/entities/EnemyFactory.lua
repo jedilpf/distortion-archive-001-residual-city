@@ -9,15 +9,18 @@ function EnemyFactory.create(scene, enemyData)
     local b = n:CreateComponent("RigidBody2D")
     b.bodyType = BT_DYNAMIC
     b.fixedRotation = true
-    b.gravityScale = (enemyData.type == "moth") and 0 or 1
-    local sh = n:CreateComponent("CollisionCircle2D")
-    sh.radius = Config.PLAYER_R
-    sh.density = 1
-    sh.friction = 0.2
+    b.gravityScale = 1
+    b.linearDamping = 0.5
+    -- 主体碰撞盒(矩形,底部对齐脚底)
+    local sh = n:CreateComponent("CollisionBox2D")
+    sh:SetSize(Config.ENEMY_WIDTH, Config.ENEMY_HEIGHT)
+    sh:SetCenter(0, Config.ENEMY_HEIGHT / 2)  -- 中心上移,底部对齐节点位置(脚底)
+    sh.density = 1.5
+    sh.friction = 0.3
     sh.categoryBits = Config.CAT_ENEMY
     sh.maskBits = Config.CAT_GROUND | Config.CAT_PLAYER
     return {
-        type = enemyData.type,
+        type = enemyData.type or "semi_executor",
         node = n,
         body = b,
         hp = enemyData.hp or 3,
@@ -25,10 +28,12 @@ function EnemyFactory.create(scene, enemyData)
         invT = 0,
         moveDir = 1,
         moveT = 0,
-        shootT = 0,
+        -- 攻击AI状态
+        atkState = "idle",   -- idle/windup/attack/cooldown
+        atkTimer = 0,
+        atkDir = 1,
         baseX = enemyData.x,
         baseY = enemyData.y,
-        floatT = 0,
     }
 end
 
