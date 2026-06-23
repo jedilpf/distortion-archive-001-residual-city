@@ -636,15 +636,14 @@ end
 local function Respawn()
     hp_=MAX_HP; invT_=0; dashing_=false; dashT_=0
     attacking_=false; atkT_=0; cleaning_=false; cleanProg_=0
-    local spawnY = roomDefs_[curRoom_].isBoss and 1.5 or 0.5
+    local spawnY = (roomDefs_[curRoom_].isBoss and Config.ENABLE_BOSS) and 1.5 or 0.5
     if playerNode_ then playerNode_:SetPosition2D(2,spawnY); playerBody_.linearVelocity=Vector2(0,0) end
     onGround_=false; gndCount_=0
     -- Boss房重生: 直接重生Boss,不重播出场文本
-    if roomDefs_[curRoom_].isBoss then
+    if roomDefs_[curRoom_].isBoss and Config.ENABLE_BOSS then
         if bossNode_ then bossNode_:Remove(); bossNode_=nil end
         for _,bp in ipairs(bossProjs_) do if bp.node then bp.node:Remove() end end
         bossProjs_={}; bossGroundWarn_={}
-        -- 清除Boss召唤的小怪和淤泥
         for _,e in ipairs(enemies_) do if e.node then e.node:Remove() end end
         enemies_={}
         for _,s in ipairs(sludges_) do if s.node then s.node:Remove() end end
@@ -666,6 +665,10 @@ end
 -- ============================================================================
 function HandleUpdate(eventType, eventData)
     local dt=eventData["TimeStep"]:GetFloat()
+    -- [防呆] Boss disabled时不允许停留在Boss相关状态
+    if not Config.ENABLE_BOSS and (gameState_==ST_BOSS_INTRO or gameState_==ST_BOSS) then
+        gameState_=ST_PLAY; bossLocked_=false
+    end
     blink_=blink_+dt; shake_=math.max(0,shake_-dt*3)
     screenFlash_=math.max(0,screenFlash_-dt*2)
     cleanInterrupted_=math.max(0,cleanInterrupted_-dt*2)
