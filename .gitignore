@@ -1,0 +1,32 @@
+# 引擎和构建产物
+.build/
+dist/
+.tmp/
+node_modules/
+logs/
+
+# 引擎内部文件(只读,不属于项目)
+engine-docs/
+examples/
+templates/
+urhox-libs/
+schemas/
+.emmylua/
+.agent/
+.claude/
+.codex/
+.cursor/
+.gemini/
+prompts/
+tools/
+skills/
+
+# 项目配置(自动生成)
+.project/
+
+# 上传临时文件
+_uploads/
+
+# OS
+.DS_Store
+Thumbs.db
