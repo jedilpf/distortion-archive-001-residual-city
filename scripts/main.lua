@@ -403,7 +403,7 @@ function CreateControls()
     vAtk_ = VirtualControls.CreateButton({
         position=Vector2(-gap*3-55, btnY), alignment={HA_RIGHT,VA_BOTTOM},
         radius=btnR-2, label="", keyBinding=KEY_J,
-        iconPath="image/btn_atk_20260621193438.png",
+        iconPath=Assets.buttons.attack,
         color={255,110,70}, opacity=0.6, activeOpacity=0.9,
         alwaysShow=true,
     })
@@ -411,7 +411,7 @@ function CreateControls()
     vJump_ = VirtualControls.CreateButton({
         position=Vector2(-gap*2-55, btnY), alignment={HA_RIGHT,VA_BOTTOM},
         radius=btnR+6, label="", keyBinding=KEY_SPACE,
-        iconPath="image/btn_jmp_20260621193517.png",
+        iconPath=Assets.buttons.jump,
         color={80,200,255}, opacity=0.6, activeOpacity=0.9,
         alwaysShow=true,
     })
@@ -419,7 +419,7 @@ function CreateControls()
     vClean_ = VirtualControls.CreateButton({
         position=Vector2(-gap*1-55, btnY), alignment={HA_RIGHT,VA_BOTTOM},
         radius=btnR-4, label="", keyBinding=KEY_K,
-        iconPath="image/btn_cln_20260621193437.png",
+        iconPath=Assets.buttons.clean,
         color={180,90,240}, opacity=0.55, activeOpacity=0.85,
         alwaysShow=true,
     })
@@ -427,7 +427,7 @@ function CreateControls()
     vDash_ = VirtualControls.CreateButton({
         position=Vector2(-55, btnY), alignment={HA_RIGHT,VA_BOTTOM},
         radius=btnR-4, label="", keyBinding=KEY_L,
-        iconPath="image/btn_dsh_20260621193531.png",
+        iconPath=Assets.buttons.dash,
         color={80,220,230}, opacity=0.55, activeOpacity=0.85,
         cooldown=DASH_CD, alwaysShow=true,
     })
@@ -443,13 +443,13 @@ function CreateControls()
     vPause_ = VirtualControls.CreateButton({
         position=Vector2(-40,40), alignment={HA_RIGHT,VA_TOP},
         radius=26, label="||", keyBinding=KEY_ESCAPE,
-        iconPath="image/btn_pse_20260621193524.png",
+        iconPath=Assets.buttons.pause,
         color={160,160,170}, opacity=0.45, alwaysShow=true,
     })
     vArchive_ = VirtualControls.CreateButton({
         position=Vector2(-100,40), alignment={HA_RIGHT,VA_TOP},
         radius=26, label="", keyBinding=KEY_2,
-        iconPath="image/btn_set_20260621193516.png",
+        iconPath=Assets.buttons.settings,
         color={160,160,170}, opacity=0.45, alwaysShow=true,
     })
 end
@@ -552,6 +552,7 @@ local bossSummonCount_ = 0 -- 已召唤骑士计数
 local bossSludgeCount_ = 0 -- 已生成淤泥计数
 
 local function SpawnBoss()
+    if not Config.ENABLE_BOSS then return end
     bossHP_=bossMaxHP_; bossPhase_=1; bossAtkT_=2; bossInvT_=0; bossPat_=1
     bossHalfShown_=false; bossLowShown_=false
     bossAtkType_=0; bossWarnType_=0; bossSummonCount_=0; bossSludgeCount_=0
@@ -1219,7 +1220,7 @@ function HandleRender(eventType, eventData)
     nvgBeginFrame(nvg_, W, H, DPR)
     if gameState_==ST_TITLE then DrawTitle()
     elseif gameState_==ST_OPENING then DrawOpening()
-    elseif gameState_==ST_BOSS_INTRO then DrawBossIntro()
+    elseif gameState_==ST_BOSS_INTRO and Config.ENABLE_BOSS then DrawBossIntro()
     elseif gameState_==ST_PLAY or gameState_==ST_BOSS then DrawGame(); DrawHUD()
     elseif gameState_==ST_DEAD then DrawGame(); DrawDeath()
     elseif gameState_==ST_PAUSE then DrawGame(); DrawHUD(); DrawPause()
@@ -1795,8 +1796,8 @@ function DrawGame()
             nvgStrokeColor(nvg_,nvgRGBA(255,60,30,pulse)); nvgStrokeWidth(nvg_,1.5); nvgStroke(nvg_)
         end
     end
-    -- Boss「空手感之王」(贴图渲染)
-    if bossNode_ and bossHP_>0 then
+    -- Boss「空手感之王」(贴图渲染) [DISABLED in v0.1]
+    if Config.ENABLE_BOSS and bossNode_ and bossHP_>0 then
         local bp=bossNode_.position2D; local sx,sy=W2S(bp.x,bp.y)
         -- 故障抖动
         local glitchX=math.sin(blink_*12)*1.5
