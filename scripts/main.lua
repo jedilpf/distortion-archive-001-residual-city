@@ -313,16 +313,23 @@ function Start()
     nvgCreateFont(nvg_, "px", "Fonts/MiSans-Regular.ttf")
     -- 加载角色帧动画(基于设定图生成的正式像素精灵)
     -- 加载角色帧动画
-    charImgs_.idle = nvgCreateImage(nvg_, Assets.char.idle, 0)
-    charImgs_.run1 = nvgCreateImage(nvg_, Assets.char.run1, 0)
-    charImgs_.run2 = nvgCreateImage(nvg_, Assets.char.run2, 0)
-    charImgs_.jump = nvgCreateImage(nvg_, Assets.char.jump, 0)
-    charImgs_.attack = nvgCreateImage(nvg_, Assets.char.attack, 0)
-    charImgs_.clean = nvgCreateImage(nvg_, Assets.char.clean, 0)
-    charImgs_.dash = nvgCreateImage(nvg_, Assets.char.dash, 0)
-    -- sprite sheet(7帧行走,用于idle+run)
-    charImgs_.walkSheet = nvgCreateImage(nvg_, Assets.char.walkSheet, 0)
-    charImgs_.walkFrames = Assets.char.walkFrames
+    -- 加载帧动画套件(每动作8帧)
+    charImgs_.idle = {}
+    charImgs_.run = {}
+    charImgs_.attack = {}
+    charImgs_.dash = {}
+    charImgs_.jump = {}
+    charImgs_.cast = {}
+    charImgs_.hit = {}
+    for i=1,8 do
+        charImgs_.idle[i] = nvgCreateImage(nvg_, Assets.char.idle[i], 0)
+        charImgs_.run[i] = nvgCreateImage(nvg_, Assets.char.run[i], 0)
+        charImgs_.attack[i] = nvgCreateImage(nvg_, Assets.char.attack[i], 0)
+        charImgs_.dash[i] = nvgCreateImage(nvg_, Assets.char.dash[i], 0)
+        charImgs_.jump[i] = nvgCreateImage(nvg_, Assets.char.jump[i], 0)
+        charImgs_.cast[i] = nvgCreateImage(nvg_, Assets.char.cast[i], 0)
+        charImgs_.hit[i] = nvgCreateImage(nvg_, Assets.char.hit[i], 0)
+    end
     -- 加载对局物件素材
     objImgs_ = {}
     objImgs_.sludge = nvgCreateImage(nvg_, Assets.objects.sludge, 0)
@@ -1892,26 +1899,30 @@ function DrawGame()
         -- 帧选择(含下落区分)
         local img=nil
         local state="idle"
-        local useSheet=false  -- 是否使用sprite sheet渲染
-        local sheetFrame=0   -- sprite sheet帧索引(0-based)
-        if dashing_ then img=charImgs_.dash; state="dash"
-        elseif attacking_ then img=charImgs_.attack; state="attack"
-        elseif cleaning_ then img=charImgs_.clean; state="clean"
+        local frameIdx=1  -- 帧索引(1-based, Lua数组)
+        if dashing_ then
+            state="dash"; frameIdx=math.floor(blink_*14)%8+1
+            img=charImgs_.dash[frameIdx]
+        elseif attacking_ then
+            state="attack"; frameIdx=math.floor(atkT_/ATK_CD*8)%8+1
+            img=charImgs_.attack[9-frameIdx]  -- 攻击从第1帧到最后帧
+        elseif cleaning_ then
+            state="clean"; frameIdx=math.floor(blink_*6)%8+1
+            img=charImgs_.cast[frameIdx]
         elseif not onGround_ then
-            img=charImgs_.jump; state=(vel.y>0) and "jump" or "fall"
+            state=(vel.y>0) and "jump" or "fall"
+            frameIdx=(vel.y>0) and (math.floor(blink_*8)%4+1) or (math.floor(blink_*8)%4+5)
+            img=charImgs_.jump[frameIdx]
         elseif math.abs(vel.x)>0.5 then
-            -- 行走: 使用sprite sheet 7帧循环
-            useSheet=true; state="run"
-            sheetFrame=math.floor(blink_*10) % charImgs_.walkFrames
+            state="run"; frameIdx=math.floor(blink_*12)%8+1
+            img=charImgs_.run[frameIdx]
         else
-            -- 待机: 使用sprite sheet前2帧慢速交替
-            useSheet=true; state="idle"
-            sheetFrame=math.floor(blink_*2) % 2
+            state="idle"; frameIdx=math.floor(blink_*5)%8+1
+            img=charImgs_.idle[frameIdx]
         end
         -- 尺寸
         local drawW=120; local drawH=144
-        local canDraw = vis and (useSheet or (img and img~=0))
-        if canDraw then
+        if vis and img and img~=0 then
             -- 冲刺拖影(5帧淡青)
             if state=="dash" then
                 for i=1,5 do
@@ -1949,17 +1960,9 @@ function DrawGame()
                 if f==0 then tintR,tintG,tintB=255,70,70
                 elseif f==1 then tintR,tintG,tintB=255,255,255; tintA=180 end
             end
-            -- 精灵渲染
+            -- 精灵渲染(独立帧图片)
             nvgBeginPath(nvg_); nvgRect(nvg_,-drawW/2,-drawH/2,drawW,drawH)
-            if useSheet and charImgs_.walkSheet and charImgs_.walkSheet~=0 then
-                -- sprite sheet: 7帧横排,用pattern偏移选帧
-                local numF=charImgs_.walkFrames
-                local patW=drawW*numF  -- pattern覆盖整张sheet(缩放到绘制尺寸)
-                local patX=-drawW/2 - sheetFrame*drawW  -- 偏移pattern让目标帧对齐绘制区
-                nvgFillPaint(nvg_,nvgImagePatternTinted(nvg_,patX,-drawH/2,patW,drawH,0,charImgs_.walkSheet,nvgRGBA(tintR,tintG,tintB,tintA)))
-            else
-                nvgFillPaint(nvg_,nvgImagePatternTinted(nvg_,-drawW/2,-drawH/2,drawW,drawH,0,img,nvgRGBA(tintR,tintG,tintB,tintA)))
-            end
+            nvgFillPaint(nvg_,nvgImagePatternTinted(nvg_,-drawW/2,-drawH/2,drawW,drawH,0,img,nvgRGBA(tintR,tintG,tintB,tintA)))
             nvgFill(nvg_)
             -- (装备已包含在精灵图中,不再单独绘制)
             nvgRestore(nvg_)

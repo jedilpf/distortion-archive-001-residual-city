@@ -2,17 +2,24 @@
 local Assets = {}
 
 Assets.char = {
-    idle = "image/char_idle1_20260621184424.png",
-    run1 = "image/char_run1_20260621184411.png",
-    run2 = "image/char_run2_20260621184434.png",
-    jump = "image/char_jump_20260621184416.png",
-    attack = "image/char_attack_20260621184410.png",
-    clean = "image/char_clean_20260621184409.png",
-    dash = "image/char_dash_20260621184409.png",
-    -- sprite sheet(7帧横排行走)
-    walkSheet = "image/VyDK7bM2oHH00EEY7x1Rq.png",
-    walkFrames = 7,
+    -- 完整帧动画套件(每动作8帧)
+    idle = {}, run = {}, walk = {}, attack = {},
+    dash = {}, jump = {}, cast = {}, hit = {},
+    knockdown = {}, skillSlash = {},
 }
+-- 批量填充路径
+for i=1,8 do
+    Assets.char.idle[i] = string.format("image/frames/hero_idle_%02d.png", i)
+    Assets.char.run[i] = string.format("image/frames/hero_run_right_%02d.png", i)
+    Assets.char.walk[i] = string.format("image/frames/hero_walk_right_%02d.png", i)
+    Assets.char.attack[i] = string.format("image/frames/hero_attack_%02d.png", i)
+    Assets.char.dash[i] = string.format("image/frames/hero_dash_right_%02d.png", i)
+    Assets.char.jump[i] = string.format("image/frames/hero_jump_%02d.png", i)
+    Assets.char.cast[i] = string.format("image/frames/hero_cast_%02d.png", i)
+    Assets.char.hit[i] = string.format("image/frames/hero_hit_death_%02d.png", i)
+    Assets.char.knockdown[i] = string.format("image/frames/hero_knockdown_getup_%02d.png", i)
+    Assets.char.skillSlash[i] = string.format("image/frames/hero_skill_slash_%02d.png", i)
+end
 
 Assets.enemy = {
     idle = "image/e01_idle_20260623015723.png",
