@@ -197,7 +197,7 @@ end
 local fragments_ = 0
 local totalSludge_ = 0
 local sludgeCleared_ = 0
-local playerNode_, playerBody_
+local playerNode_, playerBody_, playerFootNode_
 local onGround_ = false
 local gndCount_ = 0
 local platforms_ = {}
@@ -530,20 +530,25 @@ end
 -- ============================================================================
 local function CreatePlayer()
     if playerNode_ then playerNode_:Remove() end
-    playerNode_=scene_:CreateChild("Player"); playerNode_:SetPosition2D(2,0.5)
+    local groundTop = Config.GY + Config.PH
+    playerNode_=scene_:CreateChild("Player"); playerNode_:SetPosition2D(2, groundTop)
     playerBody_=playerNode_:CreateComponent("RigidBody2D")
     playerBody_.bodyType=BT_DYNAMIC; playerBody_.fixedRotation=true
-    playerBody_.linearDamping=0; playerBody_.gravityScale=1.3  -- 零阻尼(手动减速);重力偏重=落地清脆
-    -- 主体碰撞盒(矩形,底部对齐节点位置)
+    playerBody_.linearDamping=0; playerBody_.gravityScale=1.3
+    -- 主体碰撞盒(矩形,底部对齐节点位置=脚底)
     local bs=playerNode_:CreateComponent("CollisionBox2D")
     bs:SetSize(Config.PLAYER_BOX_W, Config.PLAYER_BOX_H)
-    bs:SetCenter(0, Config.PLAYER_BOX_H/2)  -- 底部对齐脚底
+    bs:SetCenter(0, Config.PLAYER_BOX_H/2)
     bs.density=1; bs.friction=0; bs.restitution=0
     bs.categoryBits=CAT_PLAYER; bs.maskBits=CAT_GROUND|CAT_ENEMY
-    -- 脚底传感器(短扁矩形,只检测地面)
-    local ft=playerNode_:CreateComponent("CollisionBox2D")
+    -- 独立脚底传感器节点(只有它触发onGround)
+    playerFootNode_=playerNode_:CreateChild("PlayerFootSensor")
+    playerFootNode_:SetPosition2D(0, 0)  -- 相对父节点,在脚底
+    local ftBody=playerFootNode_:CreateComponent("RigidBody2D")
+    ftBody.bodyType=BT_DYNAMIC; ftBody.fixedRotation=true; ftBody.gravityScale=0
+    local ft=playerFootNode_:CreateComponent("CollisionBox2D")
     ft:SetSize(Config.PLAYER_FOOT_W, Config.PLAYER_FOOT_H)
-    ft:SetCenter(0, -Config.PLAYER_FOOT_H/2)  -- 在节点位置下方
+    ft:SetCenter(0, -Config.PLAYER_FOOT_H/2)
     ft.trigger=true; ft.categoryBits=CAT_SENSOR; ft.maskBits=CAT_GROUND
     onGround_=false; gndCount_=0
 end
@@ -641,7 +646,7 @@ end
 local function Respawn()
     hp_=MAX_HP; invT_=0; dashing_=false; dashT_=0
     attacking_=false; atkT_=0; cleaning_=false; cleanProg_=0
-    local spawnY = (roomDefs_[curRoom_].isBoss and Config.ENABLE_BOSS) and 1.5 or 0.5
+    local spawnY = (roomDefs_[curRoom_].isBoss and Config.ENABLE_BOSS) and 1.5 or (Config.GY + Config.PH)
     if playerNode_ then playerNode_:SetPosition2D(2,spawnY); playerBody_.linearVelocity=Vector2(0,0) end
     onGround_=false; gndCount_=0
     -- Boss房重生: 直接重生Boss,不重播出场文本
@@ -1168,21 +1173,17 @@ end
 -- ============================================================================
 function HandleBegin(eventType, eventData)
     local nA=eventData["NodeA"]:GetPtr("Node"); local nB=eventData["NodeB"]:GetPtr("Node")
-    if not playerNode_ then return end
-    local o=(nA==playerNode_) and nB or (nB==playerNode_) and nA or nil
+    if not playerFootNode_ then return end
+    -- 只响应 PlayerFootSensor 的接触(不响应主体碰撞)
+    local o=(nA==playerFootNode_) and nB or (nB==playerFootNode_) and nA or nil
     if o and (o.name=="Platform" or o.name=="Wall") then
-        -- 只计入脚底以下的接触(防止侧面碰墙误判为着地)
-        local py=playerNode_.position2D.y
-        local oy=o.position2D.y
-        -- 平台顶部在 o.y + 平台高度，玩家脚底在 py - PLAYER_R
-        -- 简单判断: 玩家脚底接近或低于碰撞物顶部
         gndCount_=gndCount_+1; onGround_=true
     end
 end
 function HandleEnd(eventType, eventData)
     local nA=eventData["NodeA"]:GetPtr("Node"); local nB=eventData["NodeB"]:GetPtr("Node")
-    if not playerNode_ then return end
-    local o=(nA==playerNode_) and nB or (nB==playerNode_) and nA or nil
+    if not playerFootNode_ then return end
+    local o=(nA==playerFootNode_) and nB or (nB==playerFootNode_) and nA or nil
     if o and (o.name=="Platform" or o.name=="Wall") then
         gndCount_=gndCount_-1
         if gndCount_<=0 then gndCount_=0; onGround_=false end
