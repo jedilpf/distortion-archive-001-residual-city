@@ -9,6 +9,9 @@ Assets.char = {
     attack = "image/char_attack_20260621184410.png",
     clean = "image/char_clean_20260621184409.png",
     dash = "image/char_dash_20260621184409.png",
+    -- sprite sheet(7帧横排行走)
+    walkSheet = "image/VyDK7bM2oHH00EEY7x1Rq.png",
+    walkFrames = 7,
 }
 
 Assets.enemy = {
