@@ -10,6 +10,11 @@ local Config = require("config")
 local Assets = require("data.AssetManifest")
 local CoordSys = require("systems.CoordinateSystem")
 local Level001A = require("data.Level_001A")
+local Level001B = require("data.Level_001B")
+local Level001C = require("data.Level_001C")
+local Level001D = require("data.Level_001D")
+local Level001E = require("data.Level_001E")
+local Level001F = require("data.Level_001F")
 local EnemyFactory = require("entities.EnemyFactory")
 local CombatSystem = require("systems.CombatSystem")
 
@@ -271,7 +276,7 @@ local vJoy_, vJump_, vAtk_, vClean_, vDash_, vInteract_
 -- ============================================================================
 local roomDefs_ = {}
 local function DefineRooms()
-    roomDefs_ = { Level001A }
+    roomDefs_ = { Level001A, Level001B, Level001C, Level001D, Level001E, Level001F }
     totalSludge_ = 0
     for _, r in ipairs(roomDefs_) do totalSludge_ = totalSludge_ + #r.sludges end
 end
@@ -675,7 +680,14 @@ local function Respawn()
 end
 
 local function NextRoom()
-    -- 单房间设计: 进入出口门直接触发结局
+    -- 多房间推进: 还有下一间则切换并重建,最后一间通过才进入结局
+    if curRoom_ < #roomDefs_ then
+        curRoom_ = curRoom_ + 1
+        CreatePlayer()      -- 在新房间起点(x=2)重新放置主角(HP 跨房间保留)
+        BuildRoom(curRoom_) -- ClearRoom 会清掉上一间的实体;Boss 房在 ENABLE_BOSS 开启时由此进入出场
+        return
+    end
+    -- 终点 → 结局
     PlayMusic(Assets.audio.bgm_ending)
     gameState_=ST_ENDING; endPhase_=0; endT_=0; endLine_=0; endLineT_=0
 end

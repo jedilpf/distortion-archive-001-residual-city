@@ -28,7 +28,7 @@ Config.CLEAR_TIME = 1.8
 Config.COYOTE_TIME = 0.15
 Config.HITSTOP_DUR = 0.07
 Config.ROOM_W = 12
-Config.TOTAL_ROOMS = 1
+Config.TOTAL_ROOMS = 6
 
 -- 物理层
 Config.CAT_GROUND = 1
