@@ -732,11 +732,12 @@ function HandleUpdate(eventType, eventData)
     if vPause_ then vPause_.alwaysShow=inGame; vPause_._shouldShow=inGame end
     if vArchive_ then vArchive_.alwaysShow=inGame; vArchive_._shouldShow=inGame end
 
-    -- 点击屏幕进入游戏(标题/开场/Boss出场)
-    if gameState_==ST_TITLE or gameState_==ST_OPENING or gameState_==ST_BOSS_INTRO then
+    -- 点击屏幕进入游戏(标题/开场/Boss出场/结束菜单重开)
+    if gameState_==ST_TITLE or gameState_==ST_OPENING or gameState_==ST_BOSS_INTRO or gameState_==ST_MENU then
         if input:GetMouseButtonPress(MOUSEB_LEFT) then
             if gameState_==ST_TITLE then StartGame()
             elseif gameState_==ST_OPENING then ActualStart()
+            elseif gameState_==ST_MENU then ActualStart()
             elseif gameState_==ST_BOSS_INTRO and Config.ENABLE_BOSS then PlaySFX("sfx_boss_enter"); PlayMusic(Assets.audio.bgm_boss); SpawnBoss()
             end
         end
@@ -803,11 +804,11 @@ function HandleUpdate(eventType, eventData)
         end
     elseif gameState_==ST_DEAD then
         deathT_=deathT_+dt
-        -- 触屏: 跳跃按钮作为确认
-        if deathT_>1.5 and vJump_ and vJump_.isPressed then Respawn() end
+        -- 触屏: 跳跃按钮或点屏幕作为确认(死亡界面按钮已隐藏,需点屏兜底)
+        if deathT_>1.5 and ((vJump_ and vJump_.isPressed) or input:GetMouseButtonPress(MOUSEB_LEFT)) then Respawn() end
     elseif gameState_==ST_ENDING then
-        -- 触屏: 跳跃按钮跳过结局阶段
-        if vJump_ and vJump_.isPressed then
+        -- 触屏: 跳跃按钮或点屏幕跳过结局阶段(结局界面按钮已隐藏,需点屏兜底)
+        if (vJump_ and vJump_.isPressed) or input:GetMouseButtonPress(MOUSEB_LEFT) then
             if endPhase_==0 then endPhase_=1; endT_=0
             elseif endPhase_==1 then endPhase_=2; endT_=0; endLine_=0; endLineT_=0
             elseif endPhase_==2 then gameState_=ST_MENU end
@@ -829,6 +830,16 @@ function HandleUpdate(eventType, eventData)
     end
 end
 
+-- 确认提炼冲刺核心(键盘与触屏共用,避免确认逻辑只存在于 HandleKeyDown 导致手机软锁)
+local function ConfirmDashCore()
+    if not (showConfirm_ and interactTarget_) then return end
+    hasDash_=true; showConfirm_=false
+    interactTarget_.used=true; if interactTarget_.node then interactTarget_.node:Remove() end
+    fragments_=fragments_+1; shake_=0.1; screenFlash_=0.5; PlaySFX("sfx_fragment")
+    ShowFloat({"检测到可提炼模块。","模块名称：冲刺种子。","状态：可运行。","副作用：未知。"},
+        8, 2, {100,220,255,230}, 4)
+end
+
 function UpdatePlayer(dt)
     if not playerNode_ then return end
     invT_=math.max(0,invT_-dt); atkT_=math.max(0,atkT_-dt); dashCD_=math.max(0,dashCD_-dt)
@@ -837,7 +848,12 @@ function UpdatePlayer(dt)
         if hasDash_ then vDash_.opacity=0.35; vDash_.color={80,220,230}
         else vDash_.opacity=0.12; vDash_.color={60,60,60} end
     end
-    if showConfirm_ then playerBody_.linearVelocity=Vector2(0,playerBody_.linearVelocity.y); return end
+    if showConfirm_ then
+        -- 触屏: 互动按钮确认提炼(键盘 E/回车 在 HandleKeyDown 处理)
+        if vInteract_ and vInteract_.isPressed then ConfirmDashCore() end
+        if playerBody_ then playerBody_.linearVelocity=Vector2(0,playerBody_.linearVelocity.y) end
+        return
+    end
     if dashing_ then
         dashT_=dashT_-dt
         if dashT_<=0 then dashing_=false; playerBody_.gravityScale=1.3
@@ -1232,13 +1248,7 @@ function HandleKeyDown(eventType, eventData)
         return
     elseif showConfirm_ then
         if key==KEY_ESCAPE then showConfirm_=false
-        elseif key==KEY_E or key==KEY_RETURN then
-            hasDash_=true; showConfirm_=false
-            interactTarget_.used=true; if interactTarget_.node then interactTarget_.node:Remove() end
-            fragments_=fragments_+1; shake_=0.1; screenFlash_=0.5; PlaySFX("sfx_fragment")
-            ShowFloat({"检测到可提炼模块。","模块名称：冲刺种子。","状态：可运行。","副作用：未知。"},
-                8, 2, {100,220,255,230}, 4)
-        end
+        elseif key==KEY_E or key==KEY_RETURN then ConfirmDashCore() end
     else
         -- 游戏中按ESC → 暂停
         if key==KEY_ESCAPE and (gameState_==ST_PLAY or gameState_==ST_BOSS) then
