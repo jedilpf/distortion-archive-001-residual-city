@@ -59,6 +59,12 @@ Assets.objects = {
     platUpper = "image/platform_upper_20260623020533.png",
 }
 
+-- Boss「空手感之王」贴图(磁盘已有,此前未登记/未加载导致 Boss 隐形)
+Assets.boss = {
+    idle = "image/boss_idle_20260622054051.png",
+    attack = "image/boss_attack_20260622054059.png",
+}
+
 Assets.env = {
     bgFar = "image/bg_far.png",
     bgWall = "image/bg_wall.png",

@@ -348,6 +348,8 @@ function Start()
     objImgs_.casterIdle = nvgCreateImage(nvg_, Assets.enemy.caster_idle, 0)
     objImgs_.casterCast = nvgCreateImage(nvg_, Assets.enemy.caster_cast, 0)
     objImgs_.casterHurt = nvgCreateImage(nvg_, Assets.enemy.caster_hurt, 0)
+    objImgs_.bossIdle = nvgCreateImage(nvg_, Assets.boss.idle, 0)
+    objImgs_.bossAtk = nvgCreateImage(nvg_, Assets.boss.attack, 0)
     objImgs_.door = nvgCreateImage(nvg_, Assets.objects.door, 0)
     objImgs_.fragment = nvgCreateImage(nvg_, Assets.objects.fragment, 0)
     objImgs_.dashCore = nvgCreateImage(nvg_, Assets.objects.dashCore, 0)
@@ -808,6 +810,8 @@ function HandleUpdate(eventType, eventData)
         if vArchive_ and vArchive_.isPressed then pausePrev_=gameState_; gameState_=ST_SETTINGS; return end
         UpdatePlayer(dt); UpdateEnemies(dt); UpdatePickups(dt)
         UpdateHazards(dt); UpdateProjs(dt); UpdateCamera(dt)
+        -- Boss 战: 此前 UpdateBoss/UpdateBossProjs 定义了却从未接入主循环,补上
+        if gameState_==ST_BOSS then UpdateBoss(dt); UpdateBossProjs(dt) end
         if playerNode_ then
             -- 安全兜底: 如果因物理bug穿透了地面,放回地面(不扣血)
             local safeY = roomDefs_[curRoom_].isBoss and 1.5 or 0.5
@@ -953,8 +957,8 @@ function UpdatePlayer(dt)
     if interact and interactTarget_ and not interactTarget_.used then
         if interactTarget_.type=="dash_core" then showConfirm_=true
         elseif interactTarget_.type=="exit_door" then
-            -- 进入下一房间(Boss房)
-            NextRoom()
+            -- 进入下一房间;Boss 战未结束(bossLocked_)时不放行,防止按门跳过 Boss
+            if not bossLocked_ then NextRoom() end
         end
     end
     -- 检测目标
@@ -994,10 +998,9 @@ function PerformAttack()
             end
         end,
     })
-    -- [DISABLED v0.1] Boss attack logic
-    --[[
-    local ax = pp.x + atkDir_ * ATK_RANGE * 0.5
-    if gameState_ == ST_BOSS and bossNode_ then
+    -- 主角近战命中 Boss(近战盒前伸半个攻击距离,圆形判定)
+    if gameState_ == ST_BOSS and bossNode_ and bossBody_ and bossHP_ > 0 then
+        local ax = pp.x + atkDir_ * ATK_RANGE * 0.5
         local bp = bossNode_.position2D
         if math.sqrt((ax-bp.x)^2+(pp.y-bp.y)^2) < ATK_RANGE+0.3 then
             DamageBoss(ATK_DMG); hitstopT_ = HITSTOP_DUR
@@ -1005,7 +1008,6 @@ function PerformAttack()
             bossBody_.linearVelocity = Vector2(kb*3, 2)
         end
     end
-    --]]
 end
 
 -- 敌方投射物(报错弹幕): 射入 projs_,由 UpdateProjs 统一移动+近距判定扣血
@@ -1172,8 +1174,11 @@ function UpdateBoss(dt)
                     local b=n:CreateComponent("RigidBody2D"); b.bodyType=BT_DYNAMIC; b.fixedRotation=true
                     local sh=n:CreateComponent("CollisionCircle2D"); sh.radius=0.38; sh.density=1; sh.friction=0.2
                     sh.categoryBits=CAT_ENEMY; sh.maskBits=CAT_GROUND|CAT_PLAYER
+                    -- 补齐 atkState/atkTimer/atkDir: UpdateEnemies 第一行就读 atkTimer,
+                    -- 缺字段会 nil 崩溃(此前 Boss 禁用从未触发,属隐藏 bug)。补全后走近战 AI。
                     table.insert(enemies_,{type="knight",node=n,body=b,hp=2,alive=true,invT=0,
-                        moveDir=1,moveT=0,shootT=0,baseX=sx,baseY=3,floatT=0})
+                        moveDir=1,moveT=0,atkState="idle",atkTimer=0,atkDir=1,
+                        shootT=0,baseX=sx,baseY=3,floatT=0})
                     bossSummonCount_=bossSummonCount_+1
                 end
                 bossAtkT_=3.0

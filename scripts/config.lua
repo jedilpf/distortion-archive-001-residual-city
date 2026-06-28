@@ -49,8 +49,10 @@ Config.ST_ARCHIVE = 9
 Config.ST_PAUSE = 10
 Config.ST_SETTINGS = 11
 
--- Boss开关(v0.1禁用,v1.0启用)
-Config.ENABLE_BOSS = false
+-- Boss开关。结构已补全(UpdateBoss/弹幕已接主循环、knight 崩溃已修、贴图已加载、
+-- 玩家命中已接回、防跳过门已加),死亡→结局闭环正确。开启。
+-- ⚠️ 平衡/手感/出场流程需 TapTap 真机验收;数值在 main.lua 的 bossMaxHP_(默认12)与 UpdateBoss 内。
+Config.ENABLE_BOSS = true
 
 -- 敌人战斗参数
 Config.ENEMY_WIDTH = 0.5       -- 敌人碰撞盒宽
