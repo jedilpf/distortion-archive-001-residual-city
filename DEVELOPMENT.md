@@ -261,7 +261,7 @@ for f in scripts/main.lua scripts/config.lua scripts/data/*.lua; do luac5.4 -p "
 |---|---|---|
 | 6 个房间 | `Level_001A~F`，`NextRoom` 逐房间推进 | ✅ |
 | 1 个完整结尾 | `ST_ENDING` 三段式 | ✅ |
-| 2 种敌人 | 仅 `semi_executor` | ❌ 待补（5.2） |
+| 2 种敌人 | `semi_executor`(近战) + `semi_caster`(远程,已接入 R-03/R-05) | ⚠️ 逻辑✅，专属贴图待出图（占位紫色 tint，见 `ASSET_SPEC.md`） |
 | 1 个 Boss | 房间就位，战斗 gated（`ENABLE_BOSS=false`） | ⚠️ 待接通+真机（5.3） |
 | 完整触屏操作 | 标题/确认/死亡/结局/菜单已补触屏 | ✅（⚠️ 触摸→鼠标映射需真机确认） |
 

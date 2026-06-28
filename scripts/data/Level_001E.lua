@@ -16,7 +16,7 @@ Level.platforms = {
 
 Level.enemies = {
     {type="semi_executor", x=4.0, y=GY+PH, hp=3},
-    {type="semi_executor", x=8.0, y=GY+PH, hp=3},
+    {type="semi_caster", x=9.0, y=GY+PH, hp=2},  -- 近战+远程混编,施法器在后排压制
 }
 
 Level.sludges = {

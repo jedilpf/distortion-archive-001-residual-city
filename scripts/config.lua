@@ -60,6 +60,14 @@ Config.ENEMY_ATK_WINDUP = 0.3  -- 攻击前摇时间
 Config.ENEMY_ATK_CD = 1.2      -- 攻击冷却
 Config.ENEMY_ATK_HITBOX = 0.8  -- 敌人攻击判定距离
 
+-- 第二种敌人: semi_caster(远程施法器,站桩+保持距离+发射报错弹幕)
+Config.CASTER_RANGE = 7.0        -- 发现并开火的水平距离
+Config.CASTER_MIN_RANGE = 2.2    -- 玩家近于此值时后撤拉开
+Config.CASTER_WINDUP = 0.55      -- 开火前摇(预警时长)
+Config.CASTER_CD = 1.8           -- 开火冷却
+Config.CASTER_PROJ_SPEED = 7.0   -- 弹幕飞行速度(世界单位/秒)
+Config.CASTER_RETREAT_SPEED = 1.6-- 被近身时的后撤速度
+
 -- 玩家碰撞盒参数
 Config.PLAYER_BOX_W = 0.45     -- 玩家碰撞盒宽(视觉宽度60%)
 Config.PLAYER_BOX_H = 0.65     -- 玩家碰撞盒高(视觉高度88%)

@@ -42,6 +42,13 @@ Assets.enemy = {
     walk1 = "image/e01_walk1_20260623015810.png",
     walk2 = "image/e01_walk2_20260623015919.png",
     hurt = "image/e01_hurt_20260623015801.png",
+    -- 第二种敌人 semi_caster(远程施法器)。
+    -- TODO(美术): 按 ASSET_SPEC.md 出 144x144、脚贴底、透明背景的专属贴图后,
+    -- 把下面三条路径换成 e02_caster_* 实图。当前先复用 e01 占位,
+    -- 渲染时用紫色 tint 区分(见 main.lua DrawGame 敌人段),不会缺图崩溃。
+    caster_idle = "image/e01_idle_20260623015723.png",
+    caster_cast = "image/e01_hurt_20260623015801.png",
+    caster_hurt = "image/e01_hurt_20260623015801.png",
 }
 
 Assets.objects = {

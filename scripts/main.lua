@@ -345,6 +345,9 @@ function Start()
     objImgs_.enemyWalk1 = nvgCreateImage(nvg_, Assets.enemy.walk1, 0)
     objImgs_.enemyWalk2 = nvgCreateImage(nvg_, Assets.enemy.walk2, 0)
     objImgs_.enemyHit = nvgCreateImage(nvg_, Assets.enemy.hurt, 0)
+    objImgs_.casterIdle = nvgCreateImage(nvg_, Assets.enemy.caster_idle, 0)
+    objImgs_.casterCast = nvgCreateImage(nvg_, Assets.enemy.caster_cast, 0)
+    objImgs_.casterHurt = nvgCreateImage(nvg_, Assets.enemy.caster_hurt, 0)
     objImgs_.door = nvgCreateImage(nvg_, Assets.objects.door, 0)
     objImgs_.fragment = nvgCreateImage(nvg_, Assets.objects.fragment, 0)
     objImgs_.dashCore = nvgCreateImage(nvg_, Assets.objects.dashCore, 0)
@@ -1005,16 +1008,50 @@ function PerformAttack()
     --]]
 end
 
+-- 敌方投射物(报错弹幕): 射入 projs_,由 UpdateProjs 统一移动+近距判定扣血
+local function SpawnEnemyProj(x, y, tx, ty)
+    if not scene_ then return end
+    local dir = Vector2(tx - x, ty - y):Normalized()
+    local spd = Config.CASTER_PROJ_SPEED
+    local pn = scene_:CreateChild("EProj"); pn:SetPosition2D(x, y)
+    table.insert(projs_, {node=pn, vx=dir.x*spd, vy=dir.y*spd, life=3.0})
+    PlaySFX("sfx_proj")
+end
+
 function UpdateEnemies(dt)
     for _,e in ipairs(enemies_) do if e.alive and e.node then
         e.invT = math.max(0, e.invT - dt)
         local ep = e.node.position2D
         local pp = playerNode_ and playerNode_.position2D
         local distToPlayer = pp and math.abs(ep.x - pp.x) or 999
-
-        -- 攻击AI状态机
         e.atkTimer = math.max(0, e.atkTimer - dt)
-        if e.atkState == "idle" then
+
+        if e.type == "semi_caster" then
+            -- 远程施法器: 站桩,朝玩家,蓄力(带预警)后发射弹幕;被近身则后撤
+            e.atkDir = (pp and pp.x > ep.x) and 1 or -1
+            if e.atkState == "idle" then
+                if e.body then e.body.linearVelocity = Vector2(0, e.body.linearVelocity.y) end
+                if pp and distToPlayer < Config.CASTER_RANGE then
+                    e.atkState = "windup"; e.atkTimer = Config.CASTER_WINDUP
+                end
+            elseif e.atkState == "windup" then
+                -- 太近就后撤拉开距离,其余时间站桩蓄力
+                local flee = (pp and distToPlayer < Config.CASTER_MIN_RANGE)
+                    and (-e.atkDir * Config.CASTER_RETREAT_SPEED) or 0
+                if e.body then e.body.linearVelocity = Vector2(flee, e.body.linearVelocity.y) end
+                if e.atkTimer <= 0 then e.atkState = "attack"; e.atkTimer = 0.05 end
+            elseif e.atkState == "attack" then
+                if pp then
+                    SpawnEnemyProj(ep.x, ep.y + Config.ENEMY_HEIGHT*0.6, pp.x, pp.y + 0.4)
+                end
+                e.atkState = "cooldown"; e.atkTimer = Config.CASTER_CD
+            elseif e.atkState == "cooldown" then
+                if e.body then e.body.linearVelocity = Vector2(0, e.body.linearVelocity.y) end
+                if e.atkTimer <= 0 then e.atkState = "idle" end
+            end
+
+        -- 近战执行器(原有行为)
+        elseif e.atkState == "idle" then
             -- 巡逻移动
             e.moveT = e.moveT + dt
             if e.moveT > 2.0 then e.moveT = 0; e.moveDir = -e.moveDir end
@@ -1807,14 +1844,24 @@ function DrawGame()
         local ep=e.node.position2D; local sx,sy=W2S(ep.x,ep.y)
         local fl=e.invT>0 and (math.floor(blink_*20)%2==0)
         if not fl then
-            -- 选择帧
-            local img=objImgs_.enemyIdle
-            if e.invT>0 then img=objImgs_.enemyHit
-            elseif math.abs(e.body.linearVelocity.x)>0.5 then
-                img=(math.floor(blink_*5)%2==0) and objImgs_.enemyWalk1 or objImgs_.enemyWalk2
+            -- 选择帧(按敌人类型)
+            local isCaster=(e.type=="semi_caster")
+            local img
+            if isCaster then
+                img=objImgs_.casterIdle
+                if e.invT>0 then img=objImgs_.casterHurt
+                elseif e.atkState=="windup" or e.atkState=="attack" then img=objImgs_.casterCast end
+            else
+                img=objImgs_.enemyIdle
+                if e.invT>0 then img=objImgs_.enemyHit
+                elseif math.abs(e.body.linearVelocity.x)>0.5 then
+                    img=(math.floor(blink_*5)%2==0) and objImgs_.enemyWalk1 or objImgs_.enemyWalk2
+                end
             end
             local eSz=72 -- 敌人绘制尺寸
-            local dir=(e.moveDir>=0) and 1 or -1
+            -- 朝向: 近战看移动方向,施法器朝玩家
+            local face=isCaster and (e.atkDir or 1) or e.moveDir
+            local dir=(face>=0) and 1 or -1
             -- 精灵底部对齐碰撞圆底部(圆心下方PLAYER_R*PPU)
             local footOff=PLAYER_R*PPU -- 碰撞圆底部偏移=41px
             local sprTop=footOff-eSz   -- 精灵顶部Y(相对圆心)
@@ -1823,9 +1870,20 @@ function DrawGame()
                 nvgTranslate(nvg_,sx,sy)
                 if dir<0 then nvgScale(nvg_,-1,1) end
                 nvgBeginPath(nvg_); nvgRect(nvg_,-eSz/2,sprTop,eSz,eSz)
-                nvgFillPaint(nvg_,nvgImagePattern(nvg_,-eSz/2,sprTop,eSz,eSz,0,img,1.0))
+                if isCaster then
+                    -- 占位区分: 紫色 tint(待 e02 专属贴图就位后改回 nvgImagePattern)
+                    nvgFillPaint(nvg_,nvgImagePatternTinted(nvg_,-eSz/2,sprTop,eSz,eSz,0,img,nvgRGBA(180,120,240,255)))
+                else
+                    nvgFillPaint(nvg_,nvgImagePattern(nvg_,-eSz/2,sprTop,eSz,eSz,0,img,1.0))
+                end
                 nvgFill(nvg_)
                 nvgRestore(nvg_)
+            end
+            -- 施法器开火预警(头顶紫色蓄力环,给玩家躲避反应时间)
+            if isCaster and e.atkState=="windup" then
+                local prog=1-math.max(0,math.min(1,(e.atkTimer or 0)/Config.CASTER_WINDUP))
+                nvgBeginPath(nvg_); nvgCircle(nvg_,sx,sy+sprTop-6,5+prog*5)
+                nvgStrokeColor(nvg_,nvgRGBA(200,90,255,120+math.floor(prog*120))); nvgStrokeWidth(nvg_,2); nvgStroke(nvg_)
             end
             if e.type=="ghost" then
                 local ga=125+math.floor(math.sin(blink_*4)*30)

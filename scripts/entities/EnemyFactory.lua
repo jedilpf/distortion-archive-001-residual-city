@@ -19,11 +19,14 @@ function EnemyFactory.create(scene, enemyData)
     sh.friction = 0.3
     sh.categoryBits = Config.CAT_ENEMY
     sh.maskBits = Config.CAT_GROUND | Config.CAT_PLAYER
+    -- 按类型给默认血量(关卡数据可用 hp 覆盖)
+    local etype = enemyData.type or "semi_executor"
+    local defaultHp = (etype == "semi_caster") and 2 or 3
     return {
-        type = enemyData.type or "semi_executor",
+        type = etype,
         node = n,
         body = b,
-        hp = enemyData.hp or 3,
+        hp = enemyData.hp or defaultHp,
         alive = true,
         invT = 0,
         moveDir = 1,

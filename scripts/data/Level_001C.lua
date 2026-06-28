@@ -16,6 +16,7 @@ Level.platforms = {
 
 Level.enemies = {
     {type="semi_executor", x=9.0, y=GY+PH, hp=3},
+    {type="semi_caster", x=10.3, y=GY+PH, hp=2},  -- 首次出现的远程施法器,站桩丢弹幕,逼玩家冲刺躲避
 }
 
 Level.sludges = {

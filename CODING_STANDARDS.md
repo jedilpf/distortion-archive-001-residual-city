@@ -60,7 +60,7 @@
 - 枚举型字段只用已支持的取值：
   - `interactables.type` ∈ `dash_core`(仅 R1) / `exit_door`
   - `hazards.type` ∈ `damage`
-  - `enemies.type` ∈ `semi_executor`（目前唯一）
+  - `enemies.type` ∈ `semi_executor`(近战) / `semi_caster`(远程施法器)
   - `debris.type` ∈ `hpbar / popup / missing / halfui / todo`
 
 ## E. 引擎 API 约定
