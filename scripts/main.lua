@@ -2182,7 +2182,8 @@ function DrawHUD()
     nvgFontSize(nvg_,11); nvgFillColor(nvg_,nvgRGBA(160,160,160,180))
     nvgText(nvg_,W/2,8,"STAGE-00"..curRoom_)
     nvgFontSize(nvg_,13); nvgFillColor(nvg_,nvgRGBA(180,210,180,200))
-    nvgText(nvg_,W/2,22,"浅层街区")
+    local rname=(roomDefs_[curRoom_] and roomDefs_[curRoom_].name) or ""
+    nvgText(nvg_,W/2,22,rname)
     -- 任务目标条
     if gameState_==ST_PLAY then
         nvgBeginPath(nvg_); nvgRoundedRect(nvg_,W/2-180,38,360,20,3)
@@ -2215,9 +2216,9 @@ function DrawHUD()
 
     -- ===== 清理环形进度(覆盖在清理按钮位置) =====
     if cleaning_ and vClean_ then
-        -- 横排第3个按钮(清理): 1920坐标转换到NanoVG W×H坐标
-        -- 1920系: x=1920-125*1-50=1745, y=1080-90=990 → NanoVG: x=W*(1745/1920), y=H*(990/1080)
-        local cleanBtnX=W*(1920-125-50)/1920; local cleanBtnY=H*(1080-90)/1080
+        -- 清理环对齐到清理按钮的实际位置(设计坐标 -193,-95,与 CreateControls 一致)
+        -- 用 CoordSys 统一换算,避免之前魔法数算错(175≠193)导致环和按钮错位
+        local cleanBtnX,cleanBtnY=CoordSys.buttonToScreen(-193,-95,HA_RIGHT,VA_BOTTOM)
         local prog=cleanProg_/CLEAR_TIME
         local ringR=32
         -- 底环(暗)
