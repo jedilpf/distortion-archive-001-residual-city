@@ -2028,16 +2028,42 @@ function DrawGame()
             elseif state=="clean" then
                 canisterSway=math.sin(blink_*6)*1.5
             end
+            -- ===== 程序化弹性动画(单帧精灵也能"活";以下数值都可调) =====
+            local t=blink_
+            local bobY=0; local sxS=1; local syS=1; local lean=0
+            if state=="idle" then            -- 待机: 上下浮动 + 呼吸(体积守恒)
+                bobY=math.sin(t*2.2)*2.0; syS=1+math.sin(t*2.2)*0.03; sxS=1-math.sin(t*2.2)*0.03
+            elseif state=="run" then         -- 跑动: 颠簸 + 起伏 + 前倾
+                bobY=-math.abs(math.sin(t*12))*4.0; syS=1+math.sin(t*12)*0.05; sxS=1-math.sin(t*12)*0.05; lean=0.06
+            elseif state=="jump" then        -- 上升: 纵向拉长
+                local s=math.min((vel.y or 0)*0.018,0.20); syS=1+s; sxS=1-s*0.6
+            elseif state=="fall" then        -- 下落: 拉长(配合微转)
+                local s=math.min((-(vel.y or 0))*0.015,0.18); syS=1+s; sxS=1-s*0.5
+            elseif state=="dash" then        -- 冲刺: 横向拉伸
+                sxS=1.18; syS=0.86
+            elseif state=="clean" then
+                bobY=math.sin(t*6)*1.2
+            end
+            -- 落地压扁(landingT_:0~0.15,瞬间)
+            if landingT_>0 then local k=landingT_/0.15; sxS=sxS*(1+k*0.22); syS=syS*(1-k*0.18) end
+            -- 攻击放大顿挫(刚出手最强)
+            if state=="attack" then
+                local p=math.max(0,math.min(1,(atkT_-(ATK_CD-0.12))/0.12)); local punch=p*0.14
+                sxS=sxS*(1+punch); syS=syS*(1+punch)
+            end
             nvgSave(nvg_)
-            nvgTranslate(nvg_,sx,sy+sway*0.3)
+            nvgTranslate(nvg_,sx,sy+sway*0.3+bobY)
             if not facingR_ then nvgScale(nvg_,-1,1) end
-            -- 下落时微微前倾旋转
-            if state=="fall" then nvgRotate(nvg_,0.08) end
+            -- 朝向倾斜: 下落微转 / 跑步前倾
+            local rot=(state=="fall") and 0.08 or ((state=="run") and lean or 0)
+            if rot~=0 then nvgRotate(nvg_,rot) end
             -- 待机前倾
             if state=="idle" then nvgTranslate(nvg_,2,0) end
-            -- 脚底环境光(极柔和,不像选中框)
+            -- 脚底环境光(画在挤压之前,留在地面不缩放)
             nvgBeginPath(nvg_); nvgEllipse(nvg_,0,drawH/2-10,drawW*0.4,8)
             nvgFillColor(nvg_,nvgRGBA(50,180,200,18)); nvgFill(nvg_)
+            -- 挤压拉伸以"脚底"为支点(底边不动,头顶伸缩)
+            nvgTranslate(nvg_,0,drawH/2); nvgScale(nvg_,sxS,syS); nvgTranslate(nvg_,0,-drawH/2)
             -- 受伤闪色
             local tintR,tintG,tintB,tintA=255,255,255,255
             if invT_>0 then
