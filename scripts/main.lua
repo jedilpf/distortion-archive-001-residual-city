@@ -472,12 +472,6 @@ function CreateControls()
         iconPath=Assets.buttons.settings,
         color={160,160,170}, opacity=0.45, alwaysShow=true,
     })
-
-    -- 库按钮视觉透明化: 只保留触摸命中,外观由 DrawTouchButtons 用 NanoVG 自绘
-    -- (避免库的廉价彩色圆与自绘按钮重叠双绘)
-    for _,v in ipairs({vJoy_,vAtk_,vJump_,vClean_,vDash_,vInteract_,vPause_,vArchive_}) do
-        v.opacity=0.0; v.activeOpacity=0.0
-    end
 end
 
 -- ============================================================================
@@ -868,8 +862,11 @@ end
 function UpdatePlayer(dt)
     if not playerNode_ then return end
     invT_=math.max(0,invT_-dt); atkT_=math.max(0,atkT_-dt); dashCD_=math.max(0,dashCD_-dt)
-    -- 冲刺按钮视觉透明化(获得/未获得/冷却状态由 DrawTouchButtons 自绘体现)
-    if vDash_ then vDash_.opacity=0.0; vDash_.activeOpacity=0.0 end
+    -- 冲刺按钮: 获得前置灰,获得后点亮
+    if vDash_ then
+        if hasDash_ then vDash_.opacity=0.35; vDash_.color={80,220,230}
+        else vDash_.opacity=0.12; vDash_.color={60,60,60} end
+    end
     if showConfirm_ then
         -- 触屏: 互动按钮确认提炼(键盘 E/回车 在 HandleKeyDown 处理)
         if vInteract_ and vInteract_.isPressed then ConfirmDashCore() end
@@ -2309,76 +2306,34 @@ function DrawHUD()
             return dx*vcScale+vcOffX, dy*vcScale+vcOffY
         end
         local gap=138; local btnY=-95
+        local iconCol=nvgRGBA(225,240,245,210)
         local s=vcScale
-        -- 是否按下(优先持续按住,退化到边沿)
-        local function press(v) return v and (v.isTouchPressed or v.isPressed) end
-        -- 玻璃按钮本体: 暗玻璃底 + 强调色外环 + 顶部高光 + 按下发光
-        local function glassBody(cx,cy,r,acc,pressed,dim)
-            local ar,ag,ab=acc[1],acc[2],acc[3]; local baseA=dim and 100 or 160
-            if pressed then
-                nvgBeginPath(nvg_); nvgCircle(nvg_,cx,cy,r+7*s)
-                nvgFillColor(nvg_,nvgRGBA(ar,ag,ab,55)); nvgFill(nvg_)
-            end
-            nvgBeginPath(nvg_); nvgCircle(nvg_,cx,cy,r)
-            nvgFillPaint(nvg_,nvgLinearGradient(nvg_,cx,cy-r,cx,cy+r,nvgRGBA(36,42,54,pressed and 225 or baseA+45),nvgRGBA(10,13,20,pressed and 235 or baseA+20)))
-            nvgFill(nvg_)
-            nvgBeginPath(nvg_); nvgCircle(nvg_,cx,cy,r)
-            nvgStrokeColor(nvg_,nvgRGBA(ar,ag,ab,dim and 70 or (pressed and 245 or 145)))
-            nvgStrokeWidth(nvg_,(pressed and 2.6 or 1.6)*s); nvgStroke(nvg_)
-            nvgBeginPath(nvg_); nvgArc(nvg_,cx,cy,r-2.5*s,math.pi*1.18,math.pi*1.82,NVG_CW)
-            nvgStrokeColor(nvg_,nvgRGBA(255,255,255,pressed and 70 or 26)); nvgStrokeWidth(nvg_,1.3*s); nvgStroke(nvg_)
-        end
-        local function glyphTxt(cx,cy,r,acc,txt,pressed,dim)
-            nvgFontFace(nvg_,"px"); nvgFontSize(nvg_,r*0.95); nvgTextAlign(nvg_,NVG_ALIGN_CENTER|NVG_ALIGN_MIDDLE)
-            nvgFillColor(nvg_,nvgRGBA(acc[1],acc[2],acc[3],dim and 120 or (pressed and 255 or 225)))
-            nvgText(nvg_,cx,cy,txt)
-        end
-
-        -- 摇杆: 底盘 + 跟手的摇杆头
-        local jcx,jcy=BtnScr(180,-160,HA_LEFT,VA_BOTTOM)
-        local jr=120*s; local kr=46*s
-        nvgBeginPath(nvg_); nvgCircle(nvg_,jcx,jcy,jr)
-        nvgFillColor(nvg_,nvgRGBA(18,24,32,70)); nvgFill(nvg_)
-        nvgStrokeColor(nvg_,nvgRGBA(80,200,220,50)); nvgStrokeWidth(nvg_,1.4*s); nvgStroke(nvg_)
-        local jax=(vJoy_ and vJoy_.x or 0)
-        local kx=jcx+jax*(jr-kr); local jact=vJoy_ and (vJoy_.isTouchPressed or math.abs(jax)>0.06)
-        nvgBeginPath(nvg_); nvgCircle(nvg_,kx,jcy,kr)
-        nvgFillPaint(nvg_,nvgLinearGradient(nvg_,kx,jcy-kr,kx,jcy+kr,nvgRGBA(42,52,64,205),nvgRGBA(14,18,26,215))); nvgFill(nvg_)
-        nvgStrokeColor(nvg_,nvgRGBA(90,210,225,jact and 230 or 110)); nvgStrokeWidth(nvg_,1.8*s); nvgStroke(nvg_)
-
-        -- 攻击 / 跳 / 清 / 冲
-        local cx,cy=BtnScr(-gap*3-55,btnY,HA_RIGHT,VA_BOTTOM)
-        glassBody(cx,cy,60*s,{255,110,70},press(vAtk_)); glyphTxt(cx,cy,60*s,{255,150,110},"击",press(vAtk_))
-        cx,cy=BtnScr(-gap*2-55,btnY,HA_RIGHT,VA_BOTTOM)
-        glassBody(cx,cy,68*s,{90,200,255},press(vJump_)); glyphTxt(cx,cy,68*s,{150,220,255},"跳",press(vJump_))
-        cx,cy=BtnScr(-gap*1-55,btnY,HA_RIGHT,VA_BOTTOM)
-        glassBody(cx,cy,58*s,{180,110,245},press(vClean_)); glyphTxt(cx,cy,58*s,{210,160,250},"清",press(vClean_))
-        cx,cy=BtnScr(-55,btnY,HA_RIGHT,VA_BOTTOM)
-        local dDim=not hasDash_
-        glassBody(cx,cy,58*s,{90,225,235},press(vDash_),dDim)
-        if hasDash_ and dashCD_>0 and DASH_CD>0 then  -- 冷却暗弧(顺时针扫光)
-            local p=math.min(1,dashCD_/DASH_CD)
-            nvgBeginPath(nvg_); nvgArc(nvg_,cx,cy,58*s*0.7,-math.pi/2,-math.pi/2+p*math.pi*2,NVG_CW)
-            nvgStrokeColor(nvg_,nvgRGBA(8,11,16,150)); nvgStrokeWidth(nvg_,58*s*0.62); nvgStroke(nvg_)
-        end
-        glyphTxt(cx,cy,58*s,{150,235,240},"冲",press(vDash_),dDim)
-
-        -- 互动E: 有目标时高亮,无目标时变暗
-        cx,cy=BtnScr(-gap*3-55,btnY-130,HA_RIGHT,VA_BOTTOM)
-        local iDim=not (interactTarget_ or showConfirm_)
-        glassBody(cx,cy,42*s,{235,215,90},press(vInteract_),iDim); glyphTxt(cx,cy,42*s,{245,225,120},"E",press(vInteract_),iDim)
-
-        -- 暂停(双竖条) / 档案(三横线)
-        cx,cy=BtnScr(-40,40,HA_RIGHT,VA_TOP)
-        glassBody(cx,cy,26*s,{170,170,185},press(vPause_))
-        nvgBeginPath(nvg_); nvgRect(nvg_,cx-5*s,cy-7*s,3.2*s,14*s); nvgRect(nvg_,cx+1.8*s,cy-7*s,3.2*s,14*s)
-        nvgFillColor(nvg_,nvgRGBA(205,210,220,press(vPause_) and 255 or 205)); nvgFill(nvg_)
-        cx,cy=BtnScr(-100,40,HA_RIGHT,VA_TOP)
-        glassBody(cx,cy,26*s,{170,170,185},press(vArchive_))
-        for li=-1,1 do
-            nvgBeginPath(nvg_); nvgRect(nvg_,cx-7*s,cy+li*5*s-1*s,14*s,2.2*s)
-            nvgFillColor(nvg_,nvgRGBA(205,210,220,press(vArchive_) and 255 or 205)); nvgFill(nvg_)
-        end
+        -- 攻击: 斜刮刀弧线
+        local ax,ay=BtnScr(-gap*3-55,btnY,HA_RIGHT,VA_BOTTOM)
+        nvgBeginPath(nvg_)
+        nvgMoveTo(nvg_,ax-14*s,ay-12*s); nvgLineTo(nvg_,ax+12*s,ay+14*s)
+        nvgMoveTo(nvg_,ax-8*s,ay-15*s); nvgLineTo(nvg_,ax+15*s,ay+8*s)
+        nvgStrokeColor(nvg_,iconCol); nvgStrokeWidth(nvg_,2.5*s); nvgStroke(nvg_)
+        -- 跳跃: 向上箭头(最大按钮)
+        local jx,jy=BtnScr(-gap*2-55,btnY,HA_RIGHT,VA_BOTTOM)
+        nvgBeginPath(nvg_)
+        nvgMoveTo(nvg_,jx,jy+16*s); nvgLineTo(nvg_,jx,jy-16*s)
+        nvgMoveTo(nvg_,jx-12*s,jy-6*s); nvgLineTo(nvg_,jx,jy-16*s); nvgLineTo(nvg_,jx+12*s,jy-6*s)
+        nvgStrokeColor(nvg_,iconCol); nvgStrokeWidth(nvg_,3*s); nvgStroke(nvg_)
+        -- 清理: 涡旋吸附口
+        local clx,cly=BtnScr(-gap*1-55,btnY,HA_RIGHT,VA_BOTTOM)
+        nvgBeginPath(nvg_)
+        nvgArc(nvg_,clx,cly,12*s,0,math.pi*1.5,NVG_CW)
+        nvgStrokeColor(nvg_,iconCol); nvgStrokeWidth(nvg_,2.2*s); nvgStroke(nvg_)
+        nvgBeginPath(nvg_); nvgCircle(nvg_,clx,cly,3*s)
+        nvgFillColor(nvg_,iconCol); nvgFill(nvg_)
+        -- 冲刺: 双箭头闪电
+        local dsx,dsy=BtnScr(-55,btnY,HA_RIGHT,VA_BOTTOM)
+        local dCol=hasDash_ and iconCol or nvgRGBA(70,75,80,100)
+        nvgBeginPath(nvg_)
+        nvgMoveTo(nvg_,dsx-12*s,dsy); nvgLineTo(nvg_,dsx+6*s,dsy)
+        nvgMoveTo(nvg_,dsx-2*s,dsy-9*s); nvgLineTo(nvg_,dsx+14*s,dsy); nvgLineTo(nvg_,dsx-2*s,dsy+9*s)
+        nvgStrokeColor(nvg_,dCol); nvgStrokeWidth(nvg_,2.2*s); nvgStroke(nvg_)
     end
 end
 
