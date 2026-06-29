@@ -202,6 +202,9 @@ end
 local fragments_ = 0
 local totalSludge_ = 0
 local sludgeCleared_ = 0
+local combo_ = 0        -- 连击数(命中累加)
+local comboT_ = 0       -- 连击保持计时(超时归零)
+local comboPop_ = 0     -- 连击数字弹跳(命中瞬间放大)
 local playerNode_, playerBody_, playerFootNode_
 local onGround_ = false
 local gndCount_ = 0
@@ -707,6 +710,8 @@ function HandleUpdate(eventType, eventData)
         gameState_=ST_PLAY; bossLocked_=false
     end
     blink_=blink_+dt; shake_=math.max(0,shake_-dt*3)
+    comboT_=math.max(0,comboT_-dt); if comboT_<=0 then combo_=0 end
+    comboPop_=math.max(0,comboPop_-dt*4)
     screenFlash_=math.max(0,screenFlash_-dt*2)
     cleanInterrupted_=math.max(0,cleanInterrupted_-dt*2)
     landingT_=math.max(0,landingT_-dt*4)
@@ -987,6 +992,7 @@ function PerformAttack()
         onHit = function(e)
             hitstopT_ = HITSTOP_DUR
             shake_ = 0.08
+            combo_ = combo_ + 1; comboT_ = 2.5; comboPop_ = 1  -- 连击+1,刷新保持时间,触发弹跳
             PlaySFX("sfx_enemy_hit")
             SpawnVFX(e.node.position2D.x, e.node.position2D.y, 5, "hit_spark")
         end,
@@ -2158,39 +2164,100 @@ end
 function DrawHUD()
     nvgFontFace(nvg_,"px")
 
-    -- ===== 左上: 生命 + 碎片 =====
-    nvgTextAlign(nvg_,NVG_ALIGN_LEFT|NVG_ALIGN_TOP)
-    -- HP图标+数字
-    nvgFontSize(nvg_,10); nvgFillColor(nvg_,nvgRGBA(180,180,180,160))
-    nvgText(nvg_,16,10,"生命值")
-    for i=1,MAX_HP do
-        local ix=16+(i-1)*22; local iy=24
-        nvgBeginPath(nvg_); nvgRoundedRect(nvg_,ix,iy+3,15,13,2); nvgRect(nvg_,ix+4,iy,7,4)
-        if i<=hp_ then nvgFillColor(nvg_,nvgRGBA(80,220,200,220))
-        else nvgFillColor(nvg_,nvgRGBA(40,40,40,140)) end
-        nvgFill(nvg_)
-        if i<=hp_ then nvgStrokeColor(nvg_,nvgRGBA(100,240,210,120)); nvgStrokeWidth(nvg_,0.8); nvgStroke(nvg_) end
-    end
-    -- 碎片数
-    nvgFontSize(nvg_,10); nvgFillColor(nvg_,nvgRGBA(150,150,150,150))
-    nvgText(nvg_,16,44,"模块碎片")
-    nvgFontSize(nvg_,12); nvgFillColor(nvg_,nvgRGBA(80,200,240,200))
-    nvgText(nvg_,70,44,tostring(fragments_))
-
-    -- ===== 顶部中间: STAGE + 任务目标 =====
-    nvgTextAlign(nvg_,NVG_ALIGN_CENTER|NVG_ALIGN_TOP)
-    nvgFontSize(nvg_,11); nvgFillColor(nvg_,nvgRGBA(160,160,160,180))
-    nvgText(nvg_,W/2,8,"STAGE-00"..curRoom_)
-    nvgFontSize(nvg_,13); nvgFillColor(nvg_,nvgRGBA(180,210,180,200))
+    -- ============================================================
+    -- 局内 HUD(赛博框线风,对齐概念图排版)
+    -- ============================================================
+    local A_HP={236,64,140}; local A_EN={80,210,235}; local A_PU={170,90,240}; local A_BOSS={240,70,90}
     local rname=(roomDefs_[curRoom_] and roomDefs_[curRoom_].name) or ""
-    nvgText(nvg_,W/2,22,rname)
-    -- 任务目标条
-    if gameState_==ST_PLAY then
-        nvgBeginPath(nvg_); nvgRoundedRect(nvg_,W/2-180,38,360,20,3)
-        nvgFillColor(nvg_,nvgRGBA(8,8,14,160)); nvgFill(nvg_)
-        nvgStrokeColor(nvg_,nvgRGBA(60,100,90,60)); nvgStrokeWidth(nvg_,0.5); nvgStroke(nvg_)
-        nvgFontSize(nvg_,10); nvgFillColor(nvg_,nvgRGBA(160,200,180,180))
-        nvgText(nvg_,W/2,48,"清理代码淤泥，夺取模块碎片，前往 NEXT BUILD 门")
+    -- 赛博面板: 暗底 + 外发光边 + 细内边 + 左上角标
+    local function panel(x,y,w,h,acc,fa)
+        nvgBeginPath(nvg_); nvgRoundedRect(nvg_,x,y,w,h,7); nvgFillColor(nvg_,nvgRGBA(12,10,20,fa or 185)); nvgFill(nvg_)
+        nvgBeginPath(nvg_); nvgRoundedRect(nvg_,x,y,w,h,7); nvgStrokeColor(nvg_,nvgRGBA(acc[1],acc[2],acc[3],38)); nvgStrokeWidth(nvg_,4); nvgStroke(nvg_)
+        nvgBeginPath(nvg_); nvgRoundedRect(nvg_,x,y,w,h,7); nvgStrokeColor(nvg_,nvgRGBA(acc[1],acc[2],acc[3],165)); nvgStrokeWidth(nvg_,1.2); nvgStroke(nvg_)
+        nvgBeginPath(nvg_); nvgMoveTo(nvg_,x+2,y+13); nvgLineTo(nvg_,x+2,y+2); nvgLineTo(nvg_,x+13,y+2)
+        nvgStrokeColor(nvg_,nvgRGBA(acc[1],acc[2],acc[3],230)); nvgStrokeWidth(nvg_,2); nvgStroke(nvg_)
+    end
+    -- 分段条(血/能量/Boss)
+    local function segBar(x,y,w,h,frac,segs,acc)
+        frac=math.max(0,math.min(1,frac))
+        nvgBeginPath(nvg_); nvgRoundedRect(nvg_,x,y,w,h,h*0.35); nvgFillColor(nvg_,nvgRGBA(22,16,30,220)); nvgFill(nvg_)
+        if frac>0 then
+            nvgBeginPath(nvg_); nvgRoundedRect(nvg_,x,y,math.max(h,w*frac),h,h*0.35)
+            nvgFillPaint(nvg_,nvgLinearGradient(nvg_,x,y,x,y+h,nvgRGBA(acc[1],acc[2],acc[3],255),
+                nvgRGBA(math.floor(acc[1]*0.5),math.floor(acc[2]*0.5),math.floor(acc[3]*0.5),255))); nvgFill(nvg_)
+        end
+        if segs and segs>1 then for i=1,segs-1 do local sxp=x+w*i/segs
+            nvgBeginPath(nvg_); nvgRect(nvg_,sxp-0.6,y,1.2,h); nvgFillColor(nvg_,nvgRGBA(8,6,12,220)); nvgFill(nvg_) end end
+        nvgBeginPath(nvg_); nvgRoundedRect(nvg_,x,y,w,h,h*0.35); nvgStrokeColor(nvg_,nvgRGBA(acc[1],acc[2],acc[3],130)); nvgStrokeWidth(nvg_,1); nvgStroke(nvg_)
+    end
+
+    -- ----- 左上: 状态面板(头像 + 血 + 能量 + 碎片) -----
+    do
+        local px,py,pw,ph=14,12,252,86
+        panel(px,py,pw,ph,A_PU)
+        local av=70
+        nvgBeginPath(nvg_); nvgRoundedRect(nvg_,px+8,py+8,av,av,4); nvgFillColor(nvg_,nvgRGBA(20,16,30,235)); nvgFill(nvg_)
+        if charImgs_ and charImgs_.idle and charImgs_.idle[1] and charImgs_.idle[1]~=0 then
+            nvgBeginPath(nvg_); nvgRect(nvg_,px+8,py+8,av,av)
+            nvgFillPaint(nvg_,nvgImagePattern(nvg_,px+8,py+8,av,av,0,charImgs_.idle[1],1.0)); nvgFill(nvg_)
+        end
+        nvgBeginPath(nvg_); nvgRoundedRect(nvg_,px+8,py+8,av,av,4); nvgStrokeColor(nvg_,nvgRGBA(A_PU[1],A_PU[2],A_PU[3],150)); nvgStrokeWidth(nvg_,1.2); nvgStroke(nvg_)
+        local tx=px+88
+        nvgTextAlign(nvg_,NVG_ALIGN_LEFT|NVG_ALIGN_TOP); nvgFontSize(nvg_,15)
+        nvgFillColor(nvg_,nvgRGBA(235,230,245,235)); nvgText(nvg_,tx,py+8,"残机 #001")
+        segBar(tx,py+30,150,9,hp_/MAX_HP,MAX_HP,A_HP)
+        nvgFontSize(nvg_,10); nvgTextAlign(nvg_,NVG_ALIGN_RIGHT|NVG_ALIGN_MIDDLE)
+        nvgFillColor(nvg_,nvgRGBA(245,200,220,220)); nvgText(nvg_,tx+148,py+35,hp_.."/"..MAX_HP)
+        local en=hasDash_ and (DASH_CD>0 and (1-dashCD_/DASH_CD) or 1) or 0
+        segBar(tx,py+46,150,7,en,4,A_EN)
+        nvgTextAlign(nvg_,NVG_ALIGN_LEFT|NVG_ALIGN_MIDDLE)
+        nvgFontSize(nvg_,10); nvgFillColor(nvg_,nvgRGBA(150,150,160,170)); nvgText(nvg_,tx,py+67,"模块碎片")
+        nvgFontSize(nvg_,13); nvgFillColor(nvg_,nvgRGBA(A_EN[1],A_EN[2],A_EN[3],230)); nvgText(nvg_,tx+62,py+67,tostring(fragments_))
+    end
+
+    -- ----- 连击数(左侧,命中时弹跳) -----
+    if combo_>1 then
+        nvgTextAlign(nvg_,NVG_ALIGN_LEFT|NVG_ALIGN_MIDDLE)
+        nvgFontSize(nvg_,13); nvgFillColor(nvg_,nvgRGBA(A_PU[1],A_PU[2],A_PU[3],215)); nvgText(nvg_,22,130,"连击")
+        local sc=1+comboPop_*0.45
+        nvgFontSize(nvg_,28*sc); nvgFillColor(nvg_,nvgRGBA(245,225,255,240)); nvgText(nvg_,62,130,tostring(combo_))
+    end
+
+    -- ----- 顶部中央: Boss血条 / 或 关卡目标 -----
+    if gameState_==ST_BOSS and bossNode_ and bossHP_>0 then
+        local bw,bh=420,16; local bx,by=W/2-bw/2,18
+        -- 简易骷髅章
+        local skx,sky=bx-20,by+bh/2
+        nvgBeginPath(nvg_); nvgCircle(nvg_,skx,sky-1,5.5); nvgFillColor(nvg_,nvgRGBA(A_BOSS[1],A_BOSS[2],A_BOSS[3],235)); nvgFill(nvg_)
+        nvgBeginPath(nvg_); nvgCircle(nvg_,skx-2,sky-1.5,1.3); nvgCircle(nvg_,skx+2,sky-1.5,1.3); nvgFillColor(nvg_,nvgRGBA(18,8,14,255)); nvgFill(nvg_)
+        nvgBeginPath(nvg_); nvgRect(nvg_,skx-2.6,sky+3,5.2,2.6); nvgFillColor(nvg_,nvgRGBA(A_BOSS[1],A_BOSS[2],A_BOSS[3],235)); nvgFill(nvg_)
+        nvgFontFace(nvg_,"px"); nvgFontSize(nvg_,15); nvgTextAlign(nvg_,NVG_ALIGN_CENTER|NVG_ALIGN_BOTTOM)
+        nvgFillColor(nvg_,nvgRGBA(245,220,225,235)); nvgText(nvg_,W/2,by-2,"空手感之王")
+        segBar(bx,by,bw,bh,bossHP_/bossMaxHP_,12,A_BOSS)
+        nvgFontSize(nvg_,11); nvgTextAlign(nvg_,NVG_ALIGN_LEFT|NVG_ALIGN_MIDDLE)
+        nvgFillColor(nvg_,nvgRGBA(245,210,215,220)); nvgText(nvg_,bx+bw+8,by+bh/2,math.max(0,bossHP_).."/"..bossMaxHP_)
+    elseif gameState_==ST_PLAY then
+        nvgTextAlign(nvg_,NVG_ALIGN_CENTER|NVG_ALIGN_TOP); nvgFontSize(nvg_,11)
+        nvgFillColor(nvg_,nvgRGBA(170,160,185,190)); nvgText(nvg_,W/2,9,"STAGE-00"..curRoom_.."   "..rname)
+        local ow=320; local ox=W/2-ow/2; local oy=28
+        panel(ox,oy,ow,22,A_PU,150)
+        nvgFontSize(nvg_,11); nvgTextAlign(nvg_,NVG_ALIGN_CENTER|NVG_ALIGN_MIDDLE)
+        nvgFillColor(nvg_,nvgRGBA(205,195,225,215)); nvgText(nvg_,W/2,oy+12,"目标: 清理代码淤泥 · 前往 NEXT BUILD 门")
+    end
+
+    -- ----- 右上: 小地图(房间链,当前高亮) -----
+    do
+        local n=#roomDefs_; local cw=18; local mw=n*cw+14; local mh=30
+        local mx,my=W-mw-62,14
+        panel(mx,my,mw,mh,A_PU,170)
+        for i=1,n do
+            local rx=mx+8+(i-1)*cw; local ry=my+9
+            nvgBeginPath(nvg_); nvgRoundedRect(nvg_,rx,ry,cw-6,mh-18,2)
+            if i==curRoom_ then nvgFillColor(nvg_,nvgRGBA(A_EN[1],A_EN[2],A_EN[3],235))
+            elseif i<curRoom_ then nvgFillColor(nvg_,nvgRGBA(A_PU[1],A_PU[2],A_PU[3],150))
+            else nvgFillColor(nvg_,nvgRGBA(60,55,75,150)) end
+            nvgFill(nvg_)
+        end
     end
 
 
